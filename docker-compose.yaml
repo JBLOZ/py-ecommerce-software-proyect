@@ -1,3 +1,4 @@
+version: '3.8'
 services:
   redis:
     image: redis:7-alpine
@@ -19,3 +20,62 @@ services:
       - BACKEND_WEBHOOK=""
     depends_on:
       - redis
+
+  db:
+    image: mariadb:10.11
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ecommerce
+      MYSQL_USER: ecomuser
+      MYSQL_PASSWORD: ecompass
+    volumes:
+      - ./data/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "3306:3306"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    volumes:
+      - ./backend/app:/code/app
+      - ./backend/scripts:/code/scripts
+      - ./data:/code/data
+    ports:
+      - "80:80"
+    command: sh -c "rm -rf /code/data && /code/scripts/wait-for-it.sh db:3306 -- fastapi run app/main.py --proxy-headers --port 80"
+    depends_on:
+      - db
+      - redis
+
+  inference:
+    build:
+      context: ./inference
+      dockerfile: Dockerfile
+    container_name: inference
+    volumes:
+      - ./inference/app:/code/app
+    ports:
+      - "8001:80"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - BACKEND_WEBHOOK=http://backend/webhook/task_completed
+    depends_on:
+      - redis
+      - backend
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    volumes:
+      - ./frontend/app.py:/code/app.py
+      - ./frontend/requirements.txt:/code/requirements.txt
+    ports:
+      - "7860:7860"
+    environment:
+      - BACKEND_URL=http://backend
+    depends_on:
+      - backend
