@@ -1,0 +1,21 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  celery:
+    build:
+      context: ./inference
+      dockerfile: Dockerfile.worker
+    container_name: celery
+    volumes:
+      - ./inference/app:/app
+    command: celery -A app.tasks flower worker --loglevel=info --concurrency=${THREADS_PER_WORKER}
+    ports:
+      - "5555:5555"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - BACKEND_WEBHOOK=""
+    depends_on:
+      - redis
