@@ -4,7 +4,7 @@ import os
 from typing import Optional
 
 from sqlalchemy import Engine
-from sqlmodel import create_engine, Session
+from sqlmodel import SQLModel, Session, create_engine
 
 
 class DatabaseRegistry:
@@ -16,13 +16,12 @@ class DatabaseRegistry:
     DB_NAME = os.getenv("DB_NAME", "ecommerce")
     __session: Optional[Session] = None
 
-    @staticmethod
-    @property
-    def session() -> Session:
-        """Returns the database session."""
-        if DatabaseRegistry.__session is None:
-            DatabaseRegistry.__session = DatabaseRegistry.__create_session()
-        return DatabaseRegistry.__session
+    @classmethod
+    def session(cls) -> Session:
+        """Returns the database session singleton."""
+        if cls.__session is None:
+            cls.__session = cls.__create_session()
+        return cls.__session
 
     @classmethod
     def __get_engine(cls) -> Engine:
@@ -34,5 +33,8 @@ class DatabaseRegistry:
 
     @classmethod
     def __create_session(cls) -> Session:
-        """Returns the session for the database."""
-        cls.session = Session(cls.__get_engine())
+        """Creates and returns a new database session."""
+        engine = cls.__get_engine()
+        # crear tablas si no existen
+        SQLModel.metadata.create_all(engine)
+        return Session(engine)
