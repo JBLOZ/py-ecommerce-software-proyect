@@ -37,3 +37,30 @@ def test_product_crud():
     retrieved = session.get(Product, 1)
     assert retrieved.name == 'Prod1'
     assert retrieved.category_id == 2
+
+
+def test_multiple_products():
+    session = DatabaseRegistry.session()
+    # Crear categoría para productos
+    cat = Category(id=100, name='MultiCat')
+    session.add(cat)
+    session.commit()
+    # Insertar varios productos
+    products = [Product(id=i, name=f'Prod{i}', price=1.0*i, category_id=100) for i in range(1, 4)]
+    for p in products:
+        session.add(p)
+    session.commit()
+    from sqlmodel import select
+    all_prods = session.exec(select(Product)).all()
+    assert len(all_prods) == 3
+
+from sqlalchemy.exc import IntegrityError
+
+
+def test_product_missing_required_field():
+    session = DatabaseRegistry.session()
+    # Intentar crear producto sin nombre debe fallar
+    prod = Product(id=200, name=None, price=5.0, category_id=None)
+    with pytest.raises(Exception):
+        session.add(prod)
+        session.commit()
