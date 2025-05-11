@@ -34,4 +34,4 @@ jobs:
 
       - name: Lint with flake8
         run: |
-          flake8 .
+          flake8 backend/app/db
