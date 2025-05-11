@@ -1,0 +1,12 @@
+[run]
+# Omitimos los tests y archivos __init__
+omit =
+    tests/*
+    */__init__.py
+
+[report]
+# Mismos patrones para el reporte de cobertura
+omit =
+    tests/*
+    */__init__.py
+	extra_context = 1
