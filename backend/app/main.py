@@ -1,10 +1,10 @@
 import os
 import logging
-
-from fastapi import FastAPI
 from api import core_router
 from api import webhook_router
 from api import tasks_router
+from fastapi import FastAPI
+
 
 app = FastAPI(title="E-commerce Search API")
 
