@@ -1,9 +1,11 @@
-name: Database CI
+name: Full CI
 
 on:
   push:
     branches:
-      - feature/db-init
+      - main
+  pull_request:
+    branches:
       - main
 
 jobs:
@@ -25,11 +27,11 @@ jobs:
           pip install -r backend/requirements.txt
           pip install coverage flake8
 
-      - name: Run tests with coverage
+      - name: Run all tests with coverage
         env:
           PYTHONPATH: "app"
         run: |
-          python -m coverage run -m unittest discover -v tests/test_db_*.py
+          python -m coverage run -m unittest discover -v tests
 
       - name: Coverage report
         run: |
@@ -37,4 +39,4 @@ jobs:
 
       - name: Lint with flake8
         run: |
-          flake8 backend/app/db
+          flake8 backend/app
