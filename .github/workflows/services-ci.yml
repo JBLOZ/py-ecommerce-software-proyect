@@ -31,9 +31,9 @@ jobs:
 
       - name: Run service tests with coverage
         env:
-          PYTHONPATH: "app"
+          PYTHONPATH: "${{ github.workspace }}"
         run: |
-          python -m coverage run -m unittest discover -v tests/test_services_*.py
+          python -m coverage run -m unittest discover -v -p "test_services_*.py" tests
 
       - name: Coverage report
         run: |
