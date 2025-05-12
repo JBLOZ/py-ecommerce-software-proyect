@@ -31,7 +31,7 @@ jobs:
 
       - name: Run service tests with coverage
         env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/backend"
+          PYTHONPATH: ${{ github.workspace }}/backend/app:${{ github.workspace }}/backend
         run: |
           python -m coverage run -m unittest discover -v -p "test_services_*.py" tests
 

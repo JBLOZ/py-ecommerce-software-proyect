@@ -31,7 +31,7 @@ jobs:
 
       - name: Run API tests with coverage
         env:
-          PYTHONPATH: "${{ github.workspace }}/backend/app"
+          PYTHONPATH: ${{ github.workspace }}/backend/app:${{ github.workspace }}/backend
         run: |
           python -m coverage run -m unittest discover -v -p "test_api_*.py" tests
 
