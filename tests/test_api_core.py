@@ -2,10 +2,10 @@ import unittest
 from fastapi.testclient import TestClient
 from sqlmodel import SQLModel
 import backend.app.main as main_module
-import backend.app.db.registry as registry_module
+import db import registry_module
 from sqlmodel import create_engine as _create_engine
-from backend.app.db.entities.category import Category
-from backend.app.db.entities.product import Product
+from db import Category
+from db import Product
 
 
 class TestAPICore(unittest.TestCase):
