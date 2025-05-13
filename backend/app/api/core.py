@@ -6,9 +6,11 @@ from db import Product
 
 router = APIRouter()
 
+
 @router.get("/health")
 def health_check():
     return {"status": "ok"}
+
 
 @router.get("/categories")
 def get_categories():
@@ -16,11 +18,13 @@ def get_categories():
     categories = session.exec(select(Category)).all()
     return {"categories": [{"id": c.id, "name": c.name} for c in categories]}
 
+
 @router.get("/products")
 def get_products():
     session = DatabaseRegistry.session()
     products = session.exec(select(Product)).all()
     return {"products": [{"id": p.id, "name": p.name, "price": p.price} for p in products]}
+
 
 @router.post("/search/text")
 def search_text(payload: dict = Body(...)):
