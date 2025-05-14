@@ -5,9 +5,9 @@ import os
 from pathlib import Path
 from typing import List, Dict, Any
 
-from db.registry import DatabaseRegistry
-from db.entities.category import Category
-from db.entities.product import Product
+from .registry import DatabaseRegistry
+from .entities.category import Category
+from .entities.product import Product
 
 
 def load_json_data(filename: str) -> List[Dict[str, Any]]:

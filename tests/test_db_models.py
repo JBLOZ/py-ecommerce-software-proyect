@@ -3,8 +3,7 @@ from sqlmodel import create_engine as _create_engine, select, SQLModel, Session
 from sqlmodel.pool import StaticPool
 from unittest.mock import patch, MagicMock
 
-from db import DatabaseRegistry
-from db import Category, Product
+from db import DatabaseRegistry, Category, Product
 
 
 class TestDBModels(unittest.TestCase):
