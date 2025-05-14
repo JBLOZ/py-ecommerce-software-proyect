@@ -1,0 +1,82 @@
+[
+  {
+    "id": 1,
+    "name": "Smartphone XYZ",
+    "description": "Smartphone de última generación con cámara de alta resolución",
+    "price": 599.99,
+    "stock": 100,
+    "category_id": 1
+  },
+  {
+    "id": 2,
+    "name": "Laptop Ultra",
+    "description": "Laptop potente para trabajo y gaming",
+    "price": 1299.99,
+    "stock": 50,
+    "category_id": 1
+  },
+  {
+    "id": 3,
+    "name": "Camiseta Casual",
+    "description": "Camiseta de algodón 100% con diseño moderno",
+    "price": 24.99,
+    "stock": 200,
+    "category_id": 2
+  },
+  {
+    "id": 4,
+    "name": "Pantalones Vaqueros",
+    "description": "Vaqueros cómodos y duraderos",
+    "price": 49.99,
+    "stock": 150,
+    "category_id": 2
+  },
+  {
+    "id": 5,
+    "name": "Lámpara LED",
+    "description": "Lámpara de mesa con tecnología LED de bajo consumo",
+    "price": 39.99,
+    "stock": 75,
+    "category_id": 3
+  },
+  {
+    "id": 6,
+    "name": "Juego de Sábanas",
+    "description": "Juego de sábanas de algodón egipcio",
+    "price": 59.99,
+    "stock": 60,
+    "category_id": 3
+  },
+  {
+    "id": 7,
+    "name": "Pelota de Fútbol",
+    "description": "Pelota de fútbol profesional",
+    "price": 29.99,
+    "stock": 120,
+    "category_id": 4
+  },
+  {
+    "id": 8,
+    "name": "Pesas Ajustables",
+    "description": "Set de pesas ajustables para entrenamiento en casa",
+    "price": 149.99,
+    "stock": 40,
+    "category_id": 4
+  },
+  {
+    "id": 9,
+    "name": "Novela Bestseller",
+    "description": "Última novela del autor más vendido",
+    "price": 19.99,
+    "stock": 180,
+    "category_id": 5
+  },
+  {
+    "id": 10,
+    "name": "Manual de Programación",
+    "description": "Guía completa de programación moderna",
+    "price": 34.99,
+    "stock": 90,
+    "category_id": 5
+  }
+]
