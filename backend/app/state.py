@@ -7,7 +7,7 @@ WARNING: If the app is restarted, the state will be lost.
 # pero se recomienda usar app.services.result_service.ResultService en su lugar.
 # Vea app/services/result_service.py para más detalles.
 
-from app.services.result_service import ResultService
+from services import ResultService
 
 
 # Obtener una instancia del servicio

@@ -1,81 +1,47 @@
-version: '3.8'
 services:
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
-  celery:
-    build:
-      context: ./inference
-      dockerfile: Dockerfile.worker
-    container_name: celery
-    volumes:
-      - ./inference/app:/app
-    command: celery -A app.tasks flower worker --loglevel=info --concurrency=${THREADS_PER_WORKER}
-    ports:
-      - "5555:5555"
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-      - BACKEND_WEBHOOK=""
-    depends_on:
-      - redis
-
   db:
-    image: mariadb:10.11
+    image: mariadb:latest
+    container_name: ecommerce_mariadb
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: ecommerce
-      MYSQL_USER: ecomuser
-      MYSQL_PASSWORD: ecompass
-    volumes:
-      - ./data/init.sql:/docker-entrypoint-initdb.d/init.sql
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
     ports:
       - "3306:3306"
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: backend
     volumes:
-      - ./backend/app:/code/app
-      - ./backend/scripts:/code/scripts
-      - ./data:/code/data
+      - mariadb_data:/var/lib/mysql
+    restart: unless-stopped
+
+  adminer:
+    image: adminer:latest
+    container_name: ecommerce_adminer
     ports:
-      - "80:80"
-    command: sh -c "rm -rf /code/data && /code/scripts/wait-for-it.sh db:3306 -- fastapi run app/main.py --proxy-headers --port 80"
+      - "8080:8080"
     depends_on:
       - db
-      - redis
+    restart: unless-stopped
 
-  inference:
+  # Aplicación en producción - copia el código fuente en la imagen
+  api:
     build:
-      context: ./inference
-      dockerfile: Dockerfile
-    container_name: inference
-    volumes:
-      - ./inference/app:/code/app
-    ports:
-      - "8001:80"
+      context: .
+      dockerfile: ./backend/Dockerfile
+    container_name: ecommerce_api
     environment:
-      - REDIS_URL=redis://redis:6379/0
-      - BACKEND_WEBHOOK=http://backend/webhook/task_completed
-    depends_on:
-      - redis
-      - backend
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: frontend
-    volumes:
-      - ./frontend/app.py:/code/app.py
-      - ./frontend/requirements.txt:/code/requirements.txt
+      - DB_URL=mysql+pymysql://user:password@db/ecommerce
+      - PYTHONPATH=src
     ports:
-      - "7860:7860"
-    environment:
-      - BACKEND_URL=http://backend
+      - "8000:80"
+    volumes:
+      - ./logs:/code/logs
+      - ./data:/code/data
     depends_on:
-      - backend
+      - db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    command: /code/scripts/wait-for-it.sh db:3306 -t 60 -- fastapi run src/main.py --proxy-headers --port 80
+      
+volumes:
+  mariadb_data:
