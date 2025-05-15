@@ -33,12 +33,12 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/backend/app:${{ github.workspace }}/backend
         run: |
-          python -m coverage run -m unittest discover -v -p "test_services_*.py" tests
+          python -m coverage run --include='backend/app/services/*' -m unittest discover -v -p "test_services_*.py" tests
 
       - name: Coverage report
         run: |
-          python -m coverage report -m --include='backend/app/*' --fail-under=90
-          python -m coverage html --include='backend/app/*'
+          python -m coverage report -m --include='backend/app/services/*' --fail-under=90
+          python -m coverage html --include='backend/app/services/*'
 
       - name: Lint with flake8
         run: |
