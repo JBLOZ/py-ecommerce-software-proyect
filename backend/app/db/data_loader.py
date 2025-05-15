@@ -6,8 +6,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 from .registry import DatabaseRegistry
-from .entities.category import Category
-from .entities.product import Product
+from .entities import Category, Product
 
 
 def load_json_data(filename: str) -> List[Dict[str, Any]]:

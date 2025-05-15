@@ -9,4 +9,5 @@ omit =
 omit =
     tests/*
     */__init__.py
+    */data_loader.py
 	extra_context = 1
