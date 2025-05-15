@@ -1,0 +1,44 @@
+name: Full App CI
+
+on:
+  push:
+    branches:
+      - main
+      - feature/backend
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install coverage flake8
+
+      - name: Run all tests with coverage
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend/app:${{ github.workspace }}/backend
+        run: |
+          python -m coverage run --include='backend/app/*' -m unittest discover -v tests
+
+      - name: Coverage report
+        run: |
+          python -m coverage report -m --include='backend/app/*' --fail-under=90
+          python -m coverage html --include='backend/app/*'
+
+      - name: Lint with flake8
+        run: |
+          flake8 backend/app

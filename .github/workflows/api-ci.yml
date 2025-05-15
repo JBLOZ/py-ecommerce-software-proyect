@@ -1,0 +1,45 @@
+name: API CI
+
+on:
+  push:
+    branches:
+      - main
+      - feature/backend
+      - feature/*
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install coverage flake8
+
+      - name: Run API tests with coverage
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend/app:${{ github.workspace }}/backend
+        run: |
+          python -m coverage run --include='backend/app/api/*' -m unittest discover -v -p "test_api_*.py" tests
+
+      - name: Coverage report
+        run: |
+          python -m coverage report -m --fail-under=90 --include='backend/app/api/*'
+          python -m coverage html --include='backend/app/api/*'
+
+      - name: Lint with flake8
+        run: |
+          flake8 backend/app/api

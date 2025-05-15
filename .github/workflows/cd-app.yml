@@ -1,0 +1,60 @@
+name: CD Deploy & Test App
+
+on:
+  pull_request:
+    branches: [develop]
+  push:
+    branches: [develop]
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+    services:
+      docker:
+        image: docker:24.0.5-dind
+        privileged: true
+        options: >-
+          --dns 8.8.8.8
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Compose
+        run: docker compose version
+
+      - name: Build and start all services
+        run: docker compose up -d --build
+
+      - name: Wait for services to be healthy
+        run: |
+          docker compose ps
+          sleep 20
+
+      - name: Run all backend tests (coverage)
+        run: |
+          docker compose exec backend bash -c "cd /app && pytest --cov=app --cov-report=term-missing"
+
+      - name: Run frontend tests (si tienes)
+        run: |
+          docker compose exec frontend bash -c "pytest || echo 'No frontend tests'"
+        continue-on-error: true
+
+      - name: Test API endpoint (ejemplo)
+        run: |
+          # Espera a que el backend esté listo (puedes mejorar esto con healthchecks)
+          sleep 10
+          curl -v --retry 5 --retry-delay 5 http://localhost:8000/health || exit 1
+
+      - name: Show logs if failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down services
+        if: always()
+        run: docker compose down
+
+      - name: Deploy (solo si es push a develop)
+        if: github.event_name == 'push'
+        run: |
+          echo "Despliegue real aquí: docker compose up -d en el servidor de producción, o push de imagen a un registry, etc."

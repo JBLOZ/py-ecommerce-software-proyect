@@ -1,21 +1,47 @@
 services:
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
-  celery:
-    build:
-      context: ./inference
-      dockerfile: Dockerfile.worker
-    container_name: celery
-    volumes:
-      - ./inference/app:/app
-    command: celery -A app.tasks flower worker --loglevel=info --concurrency=${THREADS_PER_WORKER}
-    ports:
-      - "5555:5555"
+  db:
+    image: mariadb:latest
+    container_name: ecommerce_mariadb
     environment:
-      - REDIS_URL=redis://redis:6379/0
-      - BACKEND_WEBHOOK=""
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ecommerce
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    restart: unless-stopped
+
+  adminer:
+    image: adminer:latest
+    container_name: ecommerce_adminer
+    ports:
+      - "8080:8080"
     depends_on:
-      - redis
+      - db
+    restart: unless-stopped
+
+  # Aplicación en producción - copia el código fuente en la imagen
+  backend:
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile
+    container_name: backend
+    environment:
+      - DB_URL=mysql+pymysql://user:password@db/ecommerce
+      - PYTHONPATH=src
+    ports:
+      - "8000:80"
+    volumes:
+      - ./logs:/code/logs
+      - ./data:/code/data
+    depends_on:
+      - db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    command: /code/scripts/wait-for-it.sh db:3306 -t 60 -- fastapi run src/main.py --proxy-headers --port 80
+      
+volumes:
+  mariadb_data:

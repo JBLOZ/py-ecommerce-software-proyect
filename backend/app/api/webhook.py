@@ -12,8 +12,8 @@ from typing import List
 from fastapi import APIRouter, status
 from pydantic import BaseModel, Field
 
-from app.state import result_store
-from app.db.entities.category import CategoryTypes
+from services import ResultService
+from db import CategoryTypes
 
 router = APIRouter()
 
@@ -36,5 +36,6 @@ class TaskResult(BaseModel):
 @router.post("/webhook/task_completed", status_code=status.HTTP_202_ACCEPTED)
 async def receive_task_result(payload: TaskResult):
     """Receive task completion notification from the inference server."""
-    result_store[payload.task_id] = payload.categories
+    result_service = ResultService()
+    result_service.store_result(payload.task_id, payload.categories)
     return {"status": "received"}
