@@ -160,6 +160,66 @@ class TestDataLoader(unittest.TestCase):
         mock_import_categories.assert_called_once()
         mock_import_products.assert_not_called()  # Should not be called after exception
 
+    @patch('os.path.exists')
+    @patch('builtins.open', new_callable=mock_open, read_data='[{}]')
+    @patch('builtins.print')
+    def test_load_json_data_prints(self, mock_print, mock_file, mock_exists):
+        # Docker path existe
+        mock_exists.side_effect = lambda path: str(path).endswith('/code/data/test.json')
+        load_json_data('test.json')
+        mock_print.assert_any_call('Cargando datos desde /code/data/test.json')
+        # Docker path no existe, local sí
+        mock_exists.side_effect = lambda path: not str(path).endswith('/code/data/test.json')
+        load_json_data('test.json')
+        self.assertTrue(any('Cargando datos desde:' in str(call) for call in mock_print.call_args_list))
+        # Ningún path existe
+        mock_exists.side_effect = lambda path: False
+        load_json_data('test.json')
+        self.assertTrue(any('Warning: Data file test.json not found at' in str(call) for call in mock_print.call_args_list))
+
+    @patch('db.data_loader.load_json_data', return_value=[])
+    @patch('builtins.print')
+    def test_import_categories_print_skip(self, mock_print, mock_load_json_data):
+        self.mock_query.return_value.count.return_value = 3
+        import_categories()
+        mock_print.assert_any_call('Ya existen 3 categorías. Saltando importación.')
+
+    @patch('db.data_loader.load_json_data', return_value=[])
+    @patch('builtins.print')
+    def test_import_categories_print_success(self, mock_print, mock_load_json_data):
+        self.mock_query.return_value.count.return_value = 0
+        import_categories()
+        self.assertTrue(any('Importadas' in str(call) for call in mock_print.call_args_list))
+
+    @patch('db.data_loader.load_json_data', return_value=[])
+    @patch('builtins.print')
+    def test_import_products_print_skip(self, mock_print, mock_load_json_data):
+        self.mock_query.return_value.count.return_value = 2
+        import_products()
+        mock_print.assert_any_call('Ya existen 2 productos. Saltando importación.')
+
+    @patch('db.data_loader.load_json_data', return_value=[])
+    @patch('builtins.print')
+    def test_import_products_print_success(self, mock_print, mock_load_json_data):
+        self.mock_query.return_value.count.return_value = 0
+        import_products()
+        self.assertTrue(any('Importados' in str(call) for call in mock_print.call_args_list))
+
+    @patch('db.data_loader.import_categories', side_effect=Exception('Test error'))
+    @patch('builtins.print')
+    def test_load_sample_data_print_exception(self, mock_print, mock_import_categories):
+        load_sample_data()
+        self.assertTrue(any('Error durante la carga de datos de muestra:' in str(call) for call in mock_print.call_args_list))
+        self.assertTrue(any('Continuando con la inicialización de la aplicación...' in str(call) for call in mock_print.call_args_list))
+
+    @patch('db.data_loader.import_categories')
+    @patch('db.data_loader.import_products')
+    @patch('builtins.print')
+    def test_load_sample_data_print_success(self, mock_print, mock_import_products, mock_import_categories):
+        load_sample_data()
+        mock_print.assert_any_call('Iniciando carga de datos de muestra...')
+        self.assertTrue(any('Carga de datos de muestra completada.' in str(call) for call in mock_print.call_args_list))
+
 
 if __name__ == '__main__':
     unittest.main()

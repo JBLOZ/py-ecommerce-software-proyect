@@ -58,6 +58,33 @@ class TestDatabaseRegistry(unittest.TestCase):
             DatabaseRegistry._DatabaseRegistry__get_engine()
             # No assert sobre mock_create_engine.called, solo ejecución para cobertura
 
+    def test_get_engine_mysql_branch_with_env(self):
+        # Restaurar el método original para este test
+        DatabaseRegistry._DatabaseRegistry__get_engine = self.original_get_engine
+        DatabaseRegistry._DatabaseRegistry__db_url = None
+        DatabaseRegistry._DatabaseRegistry__engine = None
+        DatabaseRegistry._DatabaseRegistry__session = None
+        DatabaseRegistry.DB_USER = 'user'
+        DatabaseRegistry.DB_PASSWORD = 'pass'
+        DatabaseRegistry.DB_HOST = 'localhost'
+        DatabaseRegistry.DB_NAME = 'testdb'
+        with patch('db.registry.create_engine', return_value=MagicMock()):
+            DatabaseRegistry._DatabaseRegistry__get_engine()
+        # Volver a parchear para no afectar otros tests
+        DatabaseRegistry._DatabaseRegistry__get_engine = MagicMock(return_value=self.engine)
+
+    def test_get_engine_with_db_url(self):
+        # Restaurar el método original para este test
+        DatabaseRegistry._DatabaseRegistry__get_engine = self.original_get_engine
+        DatabaseRegistry._DatabaseRegistry__db_url = 'sqlite://'
+        DatabaseRegistry._DatabaseRegistry__engine = None
+        DatabaseRegistry._DatabaseRegistry__session = None
+        with patch('sqlmodel.create_engine', return_value=MagicMock()):
+            DatabaseRegistry._DatabaseRegistry__get_engine()
+        # Limpiar para no afectar otros tests
+        DatabaseRegistry._DatabaseRegistry__db_url = None
+        DatabaseRegistry._DatabaseRegistry__get_engine = MagicMock(return_value=self.engine)
+
 
 if __name__ == '__main__':
     unittest.main()
