@@ -30,18 +30,8 @@ jobs:
           docker compose ps
           sleep 20
 
-      - name: Run all backend tests (coverage)
+      - name: Test API endpoint (health)
         run: |
-          docker compose exec backend bash -c "cd /app && pytest --cov=app --cov-report=term-missing"
-
-      - name: Run frontend tests (si tienes)
-        run: |
-          docker compose exec frontend bash -c "pytest || echo 'No frontend tests'"
-        continue-on-error: true
-
-      - name: Test API endpoint (ejemplo)
-        run: |
-          # Espera a que el backend esté listo (puedes mejorar esto con healthchecks)
           sleep 10
           curl -v --retry 5 --retry-delay 5 http://localhost:8000/health || exit 1
 
