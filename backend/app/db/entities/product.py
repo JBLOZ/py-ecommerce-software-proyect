@@ -5,6 +5,7 @@ from sqlmodel import SQLModel, Field
 
 
 class Product(SQLModel, table=True):
+    __table_args__ = {"extend_existing": True}
     id: int = Field(primary_key=True)
     name: str
     description: Optional[str] = None

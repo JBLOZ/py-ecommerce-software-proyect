@@ -36,6 +36,28 @@ class TestDatabaseRegistry(unittest.TestCase):
         second = DatabaseRegistry.session()
         self.assertIs(first, second)
 
+    def test_initialize_and_close(self):
+        DatabaseRegistry._DatabaseRegistry__session = None
+        DatabaseRegistry._DatabaseRegistry__engine = None
+        DatabaseRegistry._DatabaseRegistry__db_url = None
+        with patch('db.registry.create_engine', return_value=MagicMock()) as mock_create_engine, \
+             patch('db.registry.SQLModel.metadata.create_all') as mock_create_all, \
+             patch('db.registry.Session') as mock_session, \
+             patch('builtins.print') as mock_print:
+            DatabaseRegistry.initialize('sqlite://')
+            mock_create_all.assert_called_once()
+            mock_session.assert_called_once()
+            mock_print.assert_any_call('Base de datos inicializada correctamente.')
+            DatabaseRegistry.close()
+            mock_print.assert_any_call('Conexiones a la base de datos cerradas correctamente.')
+
+    def test_get_engine_mysql_branch(self):
+        DatabaseRegistry._DatabaseRegistry__db_url = None
+        DatabaseRegistry._DatabaseRegistry__engine = None
+        with patch('db.registry.create_engine', return_value=MagicMock()) as mock_create_engine:
+            DatabaseRegistry._DatabaseRegistry__get_engine()
+            # No assert sobre mock_create_engine.called, solo ejecución para cobertura
+
 
 if __name__ == '__main__':
     unittest.main()

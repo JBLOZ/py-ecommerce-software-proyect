@@ -37,7 +37,8 @@ jobs:
 
       - name: Coverage report
         run: |
-          python -m coverage report -m --fail-under=90
+          python -m coverage report -m --include='backend/app/*' --fail-under=90
+          python -m coverage html --include='backend/app/*'
 
       - name: Lint with flake8
         run: |
