@@ -4,3 +4,4 @@ celery[redis]
 onnxruntime
 pillow
 flower
+SqueezeNet
