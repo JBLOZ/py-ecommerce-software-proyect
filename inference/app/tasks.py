@@ -2,7 +2,7 @@ import os
 from celery import Celery
 import requests
 
-from app.models.squeezenet import SqueezeNet
+from models import SqueezeNet
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 BACKEND_WEBHOOK = os.getenv("BACKEND_WEBHOOK_URL", "http://backend:8000/webhook/task_completed")
