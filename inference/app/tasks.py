@@ -2,9 +2,6 @@ import os
 from celery import Celery
 import requests
 
-from models import SqueezeNet
-
-
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 BACKEND_WEBHOOK = os.getenv("BACKEND_WEBHOOK_URL", "http://backend:8000/webhook/task_completed")
 
@@ -18,7 +15,6 @@ celery_app.conf.task_routes = {
 def process_image_task(image_data: bytes, task_id: str):
     try:
         from models import SqueezeNet
-        import os
         model_path = os.getenv("SQUEEZENET_MODEL_PATH", "squeezenet.onnx")
         model = SqueezeNet(model_path)
         predictions = model(image_data)
