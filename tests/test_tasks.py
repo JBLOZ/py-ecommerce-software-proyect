@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 from tasks import process_image_task
 
+
 class TestProcessImageTask(unittest.TestCase):
     @patch("models.SqueezeNet")
     @patch("tasks.requests.post")
@@ -34,6 +35,7 @@ class TestProcessImageTask(unittest.TestCase):
         args, kwargs = mock_post.call_args
         self.assertIn("failed", kwargs["json"].values())
         self.assertIn("error", kwargs["json"])  # error message
+
 
 if __name__ == "__main__":
     unittest.main()
