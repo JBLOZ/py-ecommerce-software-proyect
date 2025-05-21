@@ -1,0 +1,54 @@
+name: CI Inference Service
+
+on:
+  push:
+    paths:
+      - 'inference/**'
+      - 'tests/**'
+      - '.flake8'
+      - '.github/workflows/ci-inference.yaml'
+  pull_request:
+    paths:
+      - 'inference/**'
+      - 'tests/**'
+      - '.flake8'
+      - '.github/workflows/ci-inference.yaml'
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r inference/requirements.txt
+          pip install flake8 coverage
+
+      - name: Lint with flake8
+        run: |
+          flake8 inference/ --config=.flake8
+
+      - name: Run tests with coverage
+        env:
+          PYTHONPATH: inference/app
+        run: |
+          coverage run --source=inference/app -m unittest discover tests
+          coverage report --fail-under=90
+          coverage xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
