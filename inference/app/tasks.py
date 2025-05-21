@@ -17,9 +17,11 @@ celery_app.conf.task_routes = {
 @celery_app.task
 def process_image_task(image_data: bytes, task_id: str):
     try:
-        model = SqueezeNet("...")  # TODO: Use os to get the model path
+        from models import SqueezeNet
+        import os
+        model_path = os.getenv("SQUEEZENET_MODEL_PATH", "squeezenet.onnx")
+        model = SqueezeNet(model_path)
         predictions = model(image_data)
-
         requests.post(BACKEND_WEBHOOK, json={
             "task_id": task_id,
             "state": "completed",

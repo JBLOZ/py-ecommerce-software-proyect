@@ -36,4 +36,5 @@ def infer_image_sync(file: UploadFile = File(...)):
     model = SqueezeNet(model_path)
     image_data = file.file.read()
     predictions = model(image_data)
+    # Ajustar formato de respuesta: lista de dicts con label y confidence
     return JSONResponse(content={"category": predictions})
