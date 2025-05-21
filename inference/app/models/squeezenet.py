@@ -3,6 +3,7 @@ from typing import Optional
 import numpy as np
 from onnxruntime import InferenceSession
 
+
 class SqueezeNet:
     """ SqueezeNet model for image classification. """
 

@@ -8,11 +8,14 @@ def get_process_image_task():
     from .tasks import process_image_task
     return process_image_task
 
+
 router = APIRouter()
+
 
 @router.get("/health")
 def health_check():
     return {"status": "ok"}
+
 
 @router.post("/infer/image")
 def infer_image(
