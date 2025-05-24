@@ -31,7 +31,7 @@ def infer_image(
 
 @router.post("/infer/image/sync")
 def infer_image_sync(file: UploadFile = File(...)):
-    from models import SqueezeNet
+    from .models import SqueezeNet
     model_path = os.getenv("SQUEEZENET_MODEL_PATH", "squeezenet.onnx")
     model = SqueezeNet(model_path)
     image_data = file.file.read()
