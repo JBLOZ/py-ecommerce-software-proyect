@@ -1,7 +1,7 @@
 fastapi[standard]
 requests
 celery[redis]
-onnxruntime
+onnxruntime==1.19.2
 pillow
 flower
-SqueezeNet
+numpy==1.26.4

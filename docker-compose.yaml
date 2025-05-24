@@ -1,9 +1,32 @@
 services:
   redis:
+    profiles:
+      - "dev"
+      - "prod"
     image: redis:7-alpine
     ports:
       - "6379:6379"
+  inference-dev:
+    profiles:
+      - "dev"
+    build:
+      context: ./inference
+      dockerfile: Dockerfile
+    container_name: inference-dev
+    ports:
+      - "8001:80"
+    volumes:
+      - ./inference/app:/code/app
+      - ./squeezenet.onnx:/code/squeezenet.onnx
+    environment:
+      - SQUEEZENET_MODEL_PATH=/code/squeezenet.onnx
+      - REDIS_URL=redis://redis:6379/0
+    command: fastapi dev app/main.py --host 0.0.0.0 --port 80
+    depends_on:
+      - redis
   inference:
+    profiles:
+      - "prod"
     build:
       context: ./inference
       dockerfile: Dockerfile
@@ -15,9 +38,13 @@ services:
     environment:
       - SQUEEZENET_MODEL_PATH=/code/squeezenet.onnx
       - REDIS_URL=redis://redis:6379/0
+    command: fastapi run app/main.py --host 0.0.0.0 --port 80
     depends_on:
       - redis
   celery:
+    profiles:
+      - "dev"
+      - "prod"
     build:
       context: ./inference
       dockerfile: Dockerfile.worker
@@ -33,6 +60,9 @@ services:
     depends_on:
       - redis
   flower:
+    profiles:
+      - "dev"
+      - "prod"
     build:
       context: ./inference
       dockerfile: Dockerfile.worker

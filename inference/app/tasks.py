@@ -17,12 +17,21 @@ def process_image_task(image_data: bytes, task_id: str):
         from models import SqueezeNet
         model_path = os.getenv("SQUEEZENET_MODEL_PATH", "squeezenet.onnx")
         model = SqueezeNet(model_path)
-        predictions = model(image_data)
-        requests.post(BACKEND_WEBHOOK, json={
+        result = model(image_data)
+        
+        categories = []
+        for item in result["category"]:
+            categories.append({
+                "label": item["label"],
+                "score": item["confidence"]
+            })
+        
+        response_data = {
             "task_id": task_id,
             "state": "completed",
-            "category": predictions
-        }, timeout=10)
+            "categories": categories
+        }
+        requests.post(BACKEND_WEBHOOK, json=response_data, timeout=10)
     except Exception as e:
         requests.post(BACKEND_WEBHOOK, json={
             "task_id": task_id,
