@@ -1,6 +1,7 @@
 fastapi[standard]
 requests
 celery[redis]
-onnxruntime
+onnxruntime==1.20.0
 pillow
 flower
+numpy==1.26.4
