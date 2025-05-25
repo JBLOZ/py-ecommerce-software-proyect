@@ -1,8 +1,6 @@
 from fastapi import APIRouter, Body
 from sqlmodel import select
-from db import DatabaseRegistry
-from db import Category
-from db import Product
+from db import DatabaseRegistry, Category, Product
 
 router = APIRouter()
 
@@ -37,6 +35,3 @@ def search_text(payload: dict = Body(...)):
     products = session.exec(select(Product)).all()
     filtered = [p for p in products if p.category_id in [c.id for c in all_cats if c.name in matched]]
     return {"categories": matched, "products": [{"id": p.id, "name": p.name, "price": p.price} for p in filtered]}
-    filtered = [p for p in products if p.category_id in matched]
-    return {"categories": [c.name for c in all_cats if c.id in matched],
-            "products": [{"id": p.id, "name": p.name, "price": p.price} for p in filtered]}
