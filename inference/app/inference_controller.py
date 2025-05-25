@@ -6,7 +6,7 @@ import os
 
 # Inyección de dependencia para la tarea de Celery
 def get_process_image_task():
-    from .tasks import process_image_task
+    from tasks import process_image_task
     return process_image_task
 
 

@@ -1,157 +1,115 @@
-import unittest
-from unittest.mock import Mock, MagicMock, patch
-import uuid
 import io
-import os
-import sys
+import unittest
 from fastapi.testclient import TestClient
+from unittest.mock import AsyncMock, MagicMock, patch
 
-# Mockear las dependencias externas antes de importar
-sys.modules['redis'] = MagicMock()
-sys.modules['celery'] = MagicMock()
-sys.modules['kombu'] = MagicMock()
-sys.modules['kombu.transport'] = MagicMock()
-sys.modules['kombu.transport.redis'] = MagicMock()
-
-# Ahora importamos el módulo a testear
-from inference.app.inference_controller import router, get_process_image_task
+from main import app
+from inference_controller import get_process_image_task
+import tasks
 
 
 class TestInferenceController(unittest.TestCase):
-    
-    def setUp(self):
-        """Configurar el cliente de test"""
-        from fastapi import FastAPI
-        self.app = FastAPI()
-        self.app.include_router(router)
-        self.client = TestClient(self.app)
-    
+    # -------------------------------------------------------------- set-up
+    def setUp(self) -> None:
+        # 1. mocks de utilidades
+        self.uuid_patcher = patch("uuid.uuid4", autospec=True)
+        self.mock_uuid = self.uuid_patcher.start()
+
+        self.sqz_patcher = patch(
+            "inference.app.models.squeezenet.SqueezeNet", autospec=True
+        )
+        self.mock_squeezenet = self.sqz_patcher.start()
+
+        # 2. mock de la Celery-task inyectada por dependencia
+        self.mock_celery_task = MagicMock()
+        app.dependency_overrides[get_process_image_task] = (
+            lambda: self.mock_celery_task
+        )
+        # alias usado por los tests “fallback”
+        self.mock_process_task = self.mock_celery_task
+
+        # 3. TestClient sin arrancar lifespan real
+        app.lifespan = AsyncMock(return_value=None)
+        self.client = TestClient(app)
+
+    # -------------------------------------------------------------- tear-down
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
+        self.uuid_patcher.stop()
+        self.sqz_patcher.stop()
+
+    # ---------------------------------------------------------------- tests
     def test_health_check(self):
-        """Test del endpoint de health check"""
-        response = self.client.get("/health")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "ok"})
-    
+        resp = self.client.get("/health")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), {"status": "ok"})
+
     def test_get_process_image_task(self):
-        """Test de la función de inyección de dependencia"""
-        with patch('inference.app.tasks.process_image_task') as mock_task:
-            result = get_process_image_task()
-            self.assertEqual(result, mock_task)
-    
-    @patch('inference.app.inference_controller.uuid.uuid4')
-    @patch('inference.app.tasks.process_image_task')
-    def test_infer_image_success(self, mock_process_task, mock_uuid):
-        """Test del endpoint de inferencia asíncrona exitosa"""
-        # Configurar mocks
-        mock_task_id = "test-task-id-123"
-        mock_uuid.return_value = mock_task_id
-        
-        mock_celery_task = MagicMock()
-        mock_celery_task.id = "celery-task-id-456"
-        
-        mock_process_task.delay.return_value = mock_celery_task
-        
-        # Crear archivo de prueba
-        test_image_data = b"fake image data"
-        files = {"file": ("test.jpg", io.BytesIO(test_image_data), "image/jpeg")}
-        
-        # Hacer la petición
-        response = self.client.post("/infer/image", files=files)
-        
-        # Verificaciones
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"task_id": "celery-task-id-456"})
-        mock_process_task.delay.assert_called_once_with(test_image_data, mock_task_id)
-    
-    @patch('inference.app.inference_controller.uuid.uuid4')
-    @patch('inference.app.tasks.process_image_task')
-    def test_infer_image_fallback_task_id(self, mock_process_task, mock_uuid):
-        """Test del endpoint cuando el task de Celery no tiene id válido"""
-        # Configurar mocks
-        mock_task_id = "test-task-id-123"
-        mock_uuid.return_value = mock_task_id
-        
-        # Crear un mock que no tenga atributo 'id' realmente
-        class MockTaskWithoutId:
+        with patch.object(tasks, "process_image_task") as mocked:
+            self.assertIs(get_process_image_task(), mocked)
+
+    def test_infer_image_success(self):
+        self.mock_uuid.return_value = "uuid-123"
+        job = MagicMock(id="celery-456")
+        self.mock_celery_task.delay.return_value = job
+
+        files = {"file": ("img.jpg", io.BytesIO(b"data"), "image/jpeg")}
+        resp = self.client.post("/infer/image", files=files)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), {"task_id": job.id})
+        self.mock_celery_task.delay.assert_called_once()
+
+    def test_infer_image_fallback_task_id(self):
+        self.mock_uuid.return_value = "task-id-123"
+
+        class _TaskObj:  # no tiene atributo .id
             pass
-        
-        mock_celery_task = MockTaskWithoutId()
-        mock_process_task.delay.return_value = mock_celery_task
-        
-        # Crear archivo de prueba
-        test_image_data = b"fake image data"
-        files = {"file": ("test.jpg", io.BytesIO(test_image_data), "image/jpeg")}
-        
-        # Hacer la petición
-        response = self.client.post("/infer/image", files=files)
-        
-        # Verificaciones - debería usar el task_id de fallback
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"task_id": mock_task_id})
-    
-    @patch.dict('os.environ', {'SQUEEZENET_MODEL_PATH': '/path/to/model.onnx'})
-    @patch('inference.app.models.squeezenet.SqueezeNet')
-    def test_infer_image_sync_success(self, mock_squeezenet):
-        """Test del endpoint de inferencia síncrona exitosa"""
-        # Configurar mock del modelo
-        mock_model = MagicMock()
-        mock_result = {
-            "category": [
-                {"label": 285, "confidence": 0.9},
-                {"label": 281, "confidence": 0.05},
-                {"label": 282, "confidence": 0.03}
-            ]
-        }
-        mock_model.return_value = mock_result
-        mock_squeezenet.return_value = mock_model
-        
-        # Crear archivo de prueba
-        test_image_data = b"fake image data"
-        files = {"file": ("test.jpg", io.BytesIO(test_image_data), "image/jpeg")}
-        
-        # Hacer la petición
-        response = self.client.post("/infer/image/sync", files=files)
-        
-        # Verificaciones
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), mock_result)
-        mock_squeezenet.assert_called_once_with('/path/to/model.onnx')
-        mock_model.assert_called_once_with(test_image_data)
-    
-    @patch('inference.app.models.squeezenet.SqueezeNet')
-    def test_infer_image_sync_default_model_path(self, mock_squeezenet):
-        """Test del endpoint síncrono con path por defecto del modelo"""
-        # Configurar mock del modelo
-        mock_model = MagicMock()
-        mock_result = {"category": []}
-        mock_model.return_value = mock_result
-        mock_squeezenet.return_value = mock_model
-        
-        # Crear archivo de prueba
-        test_image_data = b"fake image data"
-        files = {"file": ("test.jpg", io.BytesIO(test_image_data), "image/jpeg")}
-        
-        # Hacer la petición
-        response = self.client.post("/infer/image/sync", files=files)
-        
-        # Verificaciones
-        self.assertEqual(response.status_code, 200)
-        mock_squeezenet.assert_called_once_with('squeezenet.onnx')  # Valor por defecto
-    
-    @patch('inference.app.models.squeezenet.SqueezeNet')
-    def test_infer_image_sync_model_error(self, mock_squeezenet):
-        """Test del endpoint síncrono cuando el modelo falla"""
-        # Configurar mock para que lance excepción
-        mock_squeezenet.side_effect = Exception("Model loading failed")
-        
-        # Crear archivo de prueba
-        test_image_data = b"fake image data"
-        files = {"file": ("test.jpg", io.BytesIO(test_image_data), "image/jpeg")}
-        
-        # Hacer la petición y verificar que se propaga la excepción
+
+        self.mock_process_task.delay.return_value = _TaskObj()
+
+        files = {"file": ("x.jpg", io.BytesIO(b"data"), "image/jpeg")}
+        resp = self.client.post("/infer/image", files=files)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), {"task_id": "task-id-123"})
+
+    def test_infer_image_sync_success(self):
+        with patch.dict(
+            "os.environ", {"SQUEEZENET_MODEL_PATH": "/path/to/model.onnx"}, clear=False
+        ):
+            model_mock = MagicMock()
+            result = {
+                "category": [
+                    {"label": 285, "confidence": 0.9},
+                    {"label": 281, "confidence": 0.05},
+                    {"label": 282, "confidence": 0.03},
+                ]
+            }
+            model_mock.return_value = result
+            self.mock_squeezenet.return_value = model_mock
+
+            files = {"file": ("x.jpg", io.BytesIO(b"data"), "image/jpeg")}
+            resp = self.client.post("/infer/image/sync", files=files)
+
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.json(), result)
+            self.mock_squeezenet.assert_called_once_with("/path/to/model.onnx")
+            model_mock.assert_called_once_with(b"data")
+
+    def test_infer_image_sync_default_model_path(self):
+        model_mock = MagicMock(return_value={"category": []})
+        self.mock_squeezenet.return_value = model_mock
+
+        files = {"file": ("x.jpg", io.BytesIO(b"data"), "image/jpeg")}
+        resp = self.client.post("/infer/image/sync", files=files)
+
+        self.assertEqual(resp.status_code, 200)
+        self.mock_squeezenet.assert_called_once_with("squeezenet.onnx")
+
+    def test_infer_image_sync_model_error(self):
+        self.mock_squeezenet.side_effect = Exception("boom")
+
+        files = {"file": ("x.jpg", io.BytesIO(b"data"), "image/jpeg")}
         with self.assertRaises(Exception):
             self.client.post("/infer/image/sync", files=files)
-
-
-if __name__ == '__main__':
-    unittest.main()

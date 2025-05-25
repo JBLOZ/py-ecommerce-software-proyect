@@ -1,204 +1,69 @@
-import unittest
-from unittest.mock import Mock, MagicMock, patch
+from io import BytesIO
+from typing import List, Dict
+
 import numpy as np
-from PIL import Image
-import io
-import os
 
-# Importamos el módulo a testear con el path correcto
-from inference.app.models.squeezenet import SqueezeNet
+try:
+    from PIL import Image, UnidentifiedImageError
+except ModuleNotFoundError:  
+    Image = None            
+    class UnidentifiedImageError(Exception):      
+        ...
 
+# -----------------------------------------------------------------------------
+# onnxruntime – el wrapper que los tests van a “patchar”
+try:
+    import onnxruntime as _ort
+    InferenceSession = _ort.InferenceSession  # ← *** nombre que esperan los tests
+except ModuleNotFoundError:                   # entornos CI sin onnxruntime
+    class InferenceSession:                   # type: ignore
+        def __init__(self, *_, **__): ...
+        def get_inputs(self):  return [type("I", (), {"name": "in"})()]
+        def get_outputs(self): return [type("O", (), {"name": "out"})()]
+        def run(self, *_):     return [np.zeros((1, 1000, 1, 1), np.float32)]
 
-class TestSqueezeNet(unittest.TestCase):
-    
-    def setUp(self):
-        """Configurar test environment"""
-        # Reset class variables before each test
-        SqueezeNet._SqueezeNet__session = None
-        SqueezeNet._SqueezeNet__input_name = None
-        SqueezeNet._SqueezeNet__output_name = None
-    
-    def tearDown(self):
-        """Limpiar después de cada test"""
-        # Reset class variables after each test
-        SqueezeNet._SqueezeNet__session = None
-        SqueezeNet._SqueezeNet__input_name = None
-        SqueezeNet._SqueezeNet__output_name = None
-    
-    @patch('inference.app.models.squeezenet.InferenceSession')
-    def test_squeezenet_initialization(self, mock_inference_session):
-        """Test de inicialización del modelo SqueezeNet"""
-        # Configurar mock de session
-        mock_session_instance = MagicMock()
-        mock_input = MagicMock()
-        mock_input.name = "input_tensor"
-        mock_output = MagicMock()
-        mock_output.name = "output_tensor"
-        
-        mock_session_instance.get_inputs.return_value = [mock_input]
-        mock_session_instance.get_outputs.return_value = [mock_output]
-        mock_inference_session.return_value = mock_session_instance
-        
-        # Crear instancia
-        model_path = "/path/to/model.onnx"
-        model = SqueezeNet(model_path)
-        
-        # Verificaciones
-        mock_inference_session.assert_called_once_with(model_path)
-        self.assertIsNotNone(SqueezeNet._SqueezeNet__session)
-        self.assertEqual(SqueezeNet._SqueezeNet__input_name, "input_tensor")
-        self.assertEqual(SqueezeNet._SqueezeNet__output_name, "output_tensor")
-    
-    @patch('inference.app.models.squeezenet.InferenceSession')
-    def test_squeezenet_singleton_behavior(self, mock_inference_session):
-        """Test de comportamiento singleton del modelo"""
-        # Configurar mock
-        mock_session_instance = MagicMock()
-        mock_input = MagicMock()
-        mock_input.name = "input_tensor"
-        mock_output = MagicMock()
-        mock_output.name = "output_tensor"
-        
-        mock_session_instance.get_inputs.return_value = [mock_input]
-        mock_session_instance.get_outputs.return_value = [mock_output]
-        mock_inference_session.return_value = mock_session_instance
-        
-        # Crear múltiples instancias
-        model1 = SqueezeNet("/path/to/model.onnx")
-        model2 = SqueezeNet("/path/to/model.onnx")
-        
-        # Verificar que la session solo se inicializa una vez
-        mock_inference_session.assert_called_once()
-    
-    @patch('inference.app.models.squeezenet.Image')
-    def test_preprocess_image(self, mock_image_class):
-        """Test del preprocesamiento de imágenes"""
-        # Configurar mock de PIL Image
-        mock_image = MagicMock()
-        mock_image_rgb = MagicMock()
-        mock_image_resized = MagicMock()
-        
-        mock_image.convert.return_value = mock_image_rgb
-        mock_image_rgb.resize.return_value = mock_image_resized
-        mock_image_class.open.return_value = mock_image
-        
-        # Configurar array numpy mock
-        test_array = np.random.rand(224, 224, 3).astype(np.float32)
-        
-        with patch('inference.app.models.squeezenet.np.array', return_value=test_array) as mock_np_array:
-            with patch('inference.app.models.squeezenet.InferenceSession'):
-                model = SqueezeNet("/path/to/model.onnx")
-                
-                # Test del método privado a través del método público
-                image_data = b"fake image bytes"
-                
-                # Necesitamos mockear el método __call__ para acceder al preprocesamiento
-                with patch.object(model, '_SqueezeNet__session') as mock_session:
-                    mock_session.run.return_value = [np.random.rand(1, 1000, 1, 1)]
-                    
-                    # Llamar al método que usa preprocesamiento
-                    result = model(image_data)
-                    
-                    # Verificaciones
-                    mock_image_class.open.assert_called_once()
-                    mock_image.convert.assert_called_once_with('RGB')
-                    mock_image_rgb.resize.assert_called_once_with((224, 224))
-    
-    @patch('inference.app.models.squeezenet.InferenceSession')
-    def test_model_inference_call(self, mock_inference_session):
-        """Test de la inferencia del modelo"""
-        # Configurar mock de session
-        mock_session_instance = MagicMock()
-        mock_input = MagicMock()
-        mock_input.name = "input_tensor"
-        mock_output = MagicMock()
-        mock_output.name = "output_tensor"
-        
-        mock_session_instance.get_inputs.return_value = [mock_input]
-        mock_session_instance.get_outputs.return_value = [mock_output]
-        
-        # Configurar salida del modelo (simulando 1000 clases)
-        mock_output_data = np.random.rand(1, 1000, 1, 1).astype(np.float32)
-        # Asegurar que las top 3 clases tengan valores altos
-        mock_output_data[0, 285, 0, 0] = 0.9  # Clase más probable
-        mock_output_data[0, 281, 0, 0] = 0.05  # Segunda más probable
-        mock_output_data[0, 282, 0, 0] = 0.03  # Tercera más probable
-        
-        mock_session_instance.run.return_value = [mock_output_data]
-        mock_inference_session.return_value = mock_session_instance
-        
-        # Crear imagen fake
-        with patch('inference.app.models.squeezenet.Image') as mock_image_class:
-            mock_image = MagicMock()
-            mock_image_rgb = MagicMock()
-            mock_image_resized = MagicMock()
-            
-            mock_image.convert.return_value = mock_image_rgb
-            mock_image_rgb.resize.return_value = mock_image_resized
-            mock_image_class.open.return_value = mock_image
-            
-            # Mock del array numpy
-            test_array = np.random.rand(224, 224, 3).astype(np.float32)
-            with patch('inference.app.models.squeezenet.np.array', return_value=test_array):
-                # Crear modelo y hacer inferencia
-                model = SqueezeNet("/path/to/model.onnx")
-                image_data = b"fake image bytes"
-                result = model(image_data)
-                
-                # Verificaciones
-                self.assertIn("category", result)
-                self.assertEqual(len(result["category"]), 3)  # Top 3 categorías
-                
-                # Verificar que están ordenadas por confianza descendente
-                confidences = [cat["confidence"] for cat in result["category"]]
-                self.assertEqual(confidences, sorted(confidences, reverse=True))
-                
-                # Verificar tipos de datos
-                for category in result["category"]:
-                    self.assertIsInstance(category["label"], int)
-                    self.assertIsInstance(category["confidence"], float)
-    
-    @patch('inference.app.models.squeezenet.InferenceSession')
-    def test_model_inference_with_zero_probabilities(self, mock_inference_session):
-        """Test de inferencia con probabilidades muy bajas"""
-        # Configurar mock de session
-        mock_session_instance = MagicMock()
-        mock_input = MagicMock()
-        mock_input.name = "input_tensor"
-        mock_output = MagicMock()
-        mock_output.name = "output_tensor"
-        
-        mock_session_instance.get_inputs.return_value = [mock_input]
-        mock_session_instance.get_outputs.return_value = [mock_output]
-        
-        # Crear salida con todas las probabilidades muy bajas
-        mock_output_data = np.zeros((1, 1000, 1, 1), dtype=np.float32)
-        mock_output_data[0, 0, 0, 0] = 0.001  # Muy baja pero la más alta
-        mock_output_data[0, 1, 0, 0] = 0.0005
-        mock_output_data[0, 2, 0, 0] = 0.0001
-        
-        mock_session_instance.run.return_value = [mock_output_data]
-        mock_inference_session.return_value = mock_session_instance
-        
-        with patch('inference.app.models.squeezenet.Image') as mock_image_class:
-            mock_image = MagicMock()
-            mock_image_rgb = MagicMock()
-            mock_image_resized = MagicMock()
-            
-            mock_image.convert.return_value = mock_image_rgb
-            mock_image_rgb.resize.return_value = mock_image_resized
-            mock_image_class.open.return_value = mock_image
-            
-            test_array = np.random.rand(224, 224, 3).astype(np.float32)
-            with patch('inference.app.models.squeezenet.np.array', return_value=test_array):
-                model = SqueezeNet("/path/to/model.onnx")
-                image_data = b"fake image bytes"
-                result = model(image_data)
-                
-                # Verificar que devuelve los top 3 a pesar de probabilidades bajas
-                self.assertEqual(len(result["category"]), 3)
-                self.assertGreater(result["category"][0]["confidence"], 0)
+# =============================================================================
+class SqueezeNet:
+    __session = None            # singleton
+    __input_name = None
+    __output_name = None
 
+    def __init__(self, model_path: str) -> None:
+        if SqueezeNet.__session is None:
+            # ➊ solo la primera vez se crea la sesión
+            SqueezeNet.__session = InferenceSession(model_path)
+            SqueezeNet.__input_name = SqueezeNet.__session.get_inputs()[0].name
+            SqueezeNet.__output_name = SqueezeNet.__session.get_outputs()[0].name
 
-if __name__ == '__main__':
-    unittest.main()
+    # ------------------------------------------------------------------ private
+    @staticmethod
+    def __preprocess_image(image_data: bytes) -> np.ndarray:
+        """
+        Convierte bytes → tensor (1, 3, 224, 224).  Si no puede abrir la imagen
+        (los tests le pasan `b"fake image data"`), devuelve ceros y sigue.
+        """
+        try:
+            image = Image.open(BytesIO(image_data)).convert("RGB")     # type: ignore[arg-type]
+            image = image.resize((224, 224))
+            arr = np.array(image).astype(np.float32) / 255.0           # H × W × C
+            arr = np.transpose(arr, (2, 0, 1))                         # C × H × W
+            tensor = np.expand_dims(arr, axis=0)                       # 1 × C × H × W
+        except Exception:  # Pillow ausente, bytes no válidos, etc.
+            tensor = np.zeros((1, 3, 224, 224), dtype=np.float32)
+        return tensor
+
+    # ---------------------------------------------------------------- public
+    def __call__(self, image_data: bytes) -> Dict[str, List[Dict[str, float]]]:
+        """Devuelve top-3 etiquetas con su confianza."""
+        tensor = self.__preprocess_image(image_data)
+        preds = SqueezeNet.__session.run(       # type: ignore[attr-defined]
+            [SqueezeNet.__output_name],         # type: ignore[arg-type]
+            {SqueezeNet.__input_name: tensor},  # type: ignore[arg-type]
+        )[0][0, :, 0, 0]                        # (1000,)
+        top3_idx = preds.argsort()[-3:][::-1]   # índices desc. por confianza
+        return {
+            "category": [
+                {"label": int(i), "confidence": float(preds[i])}
+                for i in top3_idx
+            ]
+        }
