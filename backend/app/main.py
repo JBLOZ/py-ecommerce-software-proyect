@@ -1,8 +1,7 @@
 import os
 # import logging
-from api import core_router
 from api import webhook_router
-from api import tasks_router
+from controllers import core_router, tasks_router
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from db import DatabaseRegistry, load_sample_data
