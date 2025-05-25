@@ -14,18 +14,18 @@ celery_app.conf.task_routes = {
 @celery_app.task
 def process_image_task(image_data: bytes, task_id: str):
     try:
-        from models import SqueezeNet
+        from inference.app.models.squeezenet import SqueezeNet  # MODIFICADO
         model_path = os.getenv("SQUEEZENET_MODEL_PATH", "squeezenet.onnx")
         model = SqueezeNet(model_path)
         result = model(image_data)
-        
+
         categories = []
         for item in result["category"]:
             categories.append({
                 "label": item["label"],
                 "score": item["confidence"]
             })
-        
+
         response_data = {
             "task_id": task_id,
             "state": "completed",
