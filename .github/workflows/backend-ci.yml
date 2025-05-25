@@ -1,11 +1,10 @@
-name: API CI
+name: Full Backend CI
 
 on:
   push:
     branches:
       - main
       - feature/backend
-      - feature/*
   pull_request:
     branches:
       - main
@@ -29,17 +28,17 @@ jobs:
           pip install -r backend/requirements.txt
           pip install coverage flake8
 
-      - name: Run API tests with coverage
+      - name: Run all tests with coverage
         env:
           PYTHONPATH: ${{ github.workspace }}/backend/app:${{ github.workspace }}/backend
         run: |
-          python -m coverage run --include='backend/app/api/*' -m unittest discover -v -p "test_api_*.py" tests
+          python -m coverage run --include='backend/app/*' -m unittest discover -v tests
 
       - name: Coverage report
         run: |
-          python -m coverage report -m --fail-under=90 --include='backend/app/api/*'
-          python -m coverage html --include='backend/app/api/*'
+          python -m coverage report -m --include='backend/app/*' --fail-under=90
+          python -m coverage html --include='backend/app/*'
 
       - name: Lint with flake8
         run: |
-          flake8 backend/app/api
+          flake8 backend/app
