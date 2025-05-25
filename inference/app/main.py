@@ -1,5 +1,8 @@
 from fastapi import FastAPI
-from inference_controller import router as inference_router
+try:
+    from inference_controller import router as inference_router
+except ImportError:
+    from .inference_controller import router as inference_router
 
 app = FastAPI()
 
