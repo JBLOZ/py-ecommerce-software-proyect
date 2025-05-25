@@ -30,7 +30,7 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/backend/app:${{ github.workspace }}/backend
         run: |
-          python -m coverage run --include='backend/app/db/*' -m unittest discover -v -p "test_db_*.py" tests
+          python -m coverage run --include='backend/app/db/*' -m unittest discover -v -p "test_db_*.py" tests/backend
 
       - name: Coverage report
         run: |

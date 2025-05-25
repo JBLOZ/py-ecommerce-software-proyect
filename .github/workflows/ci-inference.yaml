@@ -39,7 +39,7 @@ jobs:
         env:
           PYTHONPATH: inference/app
         run: |
-          coverage run --source=inference/app -m unittest discover tests
+          coverage run --source=inference/app -m unittest discover tests/inference
           coverage report --fail-under=65
           coverage xml
 
