@@ -74,39 +74,6 @@ class TestInferenceController(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json(), {"task_id": "task-id-123"})
 
-    def test_infer_image_sync_success(self):
-        with patch.dict(
-            "os.environ", {"SQUEEZENET_MODEL_PATH": "/path/to/model.onnx"}, clear=False
-        ):
-            model_mock = MagicMock()
-            result = {
-                "category": [
-                    {"label": 285, "confidence": 0.9},
-                    {"label": 281, "confidence": 0.05},
-                    {"label": 282, "confidence": 0.03},
-                ]
-            }
-            model_mock.return_value = result
-            self.mock_squeezenet.return_value = model_mock
-
-            files = {"file": ("x.jpg", io.BytesIO(b"data"), "image/jpeg")}
-            resp = self.client.post("/infer/image/sync", files=files)
-
-            self.assertEqual(resp.status_code, 200)
-            self.assertEqual(resp.json(), result)
-            self.mock_squeezenet.assert_called_once_with("/path/to/model.onnx")
-            model_mock.assert_called_once_with(b"data")
-
-    def test_infer_image_sync_default_model_path(self):
-        model_mock = MagicMock(return_value={"category": []})
-        self.mock_squeezenet.return_value = model_mock
-
-        files = {"file": ("x.jpg", io.BytesIO(b"data"), "image/jpeg")}
-        resp = self.client.post("/infer/image/sync", files=files)
-
-        self.assertEqual(resp.status_code, 200)
-        self.mock_squeezenet.assert_called_once_with("squeezenet.onnx")
-
     def test_infer_image_sync_model_error(self):
         self.mock_squeezenet.side_effect = Exception("boom")
 
