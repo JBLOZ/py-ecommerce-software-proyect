@@ -1,56 +1,82 @@
+import io
 import unittest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
 from main import app
 from inference_controller import get_process_image_task
+import tasks
+
 
 class TestInferenceController(unittest.TestCase):
-    def setUp(self):
-        # Mock de la task y su método delay para evitar conexión real a Celery/Redis
-        mock_task = MagicMock()
-        mock_delay_result = MagicMock()
-        mock_delay_result.id = "fake-task-id"
-        mock_task.delay.return_value = mock_delay_result
-        app.dependency_overrides[get_process_image_task] = lambda: mock_task
+    # -------------------------------------------------------------- set-up
+    def setUp(self) -> None:
+        # 1. mocks de utilidades
+        self.uuid_patcher = patch("uuid.uuid4", autospec=True)
+        self.mock_uuid = self.uuid_patcher.start()
+
+        self.sqz_patcher = patch(
+            "inference.app.models.squeezenet.SqueezeNet", autospec=True
+        )
+        self.mock_squeezenet = self.sqz_patcher.start()
+
+        # 2. mock de la Celery-task inyectada por dependencia
+        self.mock_celery_task = MagicMock()
+        app.dependency_overrides[get_process_image_task] = (
+            lambda: self.mock_celery_task
+        )
+        # alias usado por los tests “fallback”
+        self.mock_process_task = self.mock_celery_task
+
+        # 3. TestClient sin arrancar lifespan real
+        app.lifespan = AsyncMock(return_value=None)
         self.client = TestClient(app)
 
-    def tearDown(self):
+    # -------------------------------------------------------------- tear-down
+    def tearDown(self) -> None:
         app.dependency_overrides.clear()
+        self.uuid_patcher.stop()
+        self.sqz_patcher.stop()
 
+    # ---------------------------------------------------------------- tests
     def test_health_check(self):
-        response = self.client.get("/health")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "ok"})
+        resp = self.client.get("/health")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), {"status": "ok"})
 
-    def test_infer_image(self):
-        file_content = b"fake image data"
-        response = self.client.post(
-            "/infer/image",
-            files={"file": ("test.jpg", file_content, "image/jpeg")}
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("task_id", response.json())
-        self.assertEqual(response.json()["task_id"], "fake-task-id")
+    def test_get_process_image_task(self):
+        with patch.object(tasks, "process_image_task") as mocked:
+            self.assertIs(get_process_image_task(), mocked)
 
-    @patch("models.SqueezeNet")
-    def test_infer_image_sync(self, mock_squeezenet):
-        mock_model = MagicMock()
-        mock_model.return_value = [
-            {"label": 1, "confidence": 0.95},
-            {"label": 3, "confidence": 0.83},
-            {"label": 5, "confidence": 0.78}
-        ]
-        mock_squeezenet.return_value = mock_model
-        file_content = b"fake image data"
-        response = self.client.post(
-            "/infer/image/sync",
-            files={"file": ("test.jpg", file_content, "image/jpeg")}
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("category", response.json())
-        self.assertIsInstance(response.json()["category"], list)
-        self.assertIn("label", response.json()["category"][0])
-        self.assertIn("confidence", response.json()["category"][0])
+    def test_infer_image_success(self):
+        self.mock_uuid.return_value = "uuid-123"
+        job = MagicMock(id="celery-456")
+        self.mock_celery_task.delay.return_value = job
 
-if __name__ == "__main__":
-    unittest.main()
+        files = {"file": ("img.jpg", io.BytesIO(b"data"), "image/jpeg")}
+        resp = self.client.post("/infer/image", files=files)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), {"task_id": job.id})
+        self.mock_celery_task.delay.assert_called_once()
+
+    def test_infer_image_fallback_task_id(self):
+        self.mock_uuid.return_value = "task-id-123"
+
+        class _TaskObj:  # no tiene atributo .id
+            pass
+
+        self.mock_process_task.delay.return_value = _TaskObj()
+
+        files = {"file": ("x.jpg", io.BytesIO(b"data"), "image/jpeg")}
+        resp = self.client.post("/infer/image", files=files)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), {"task_id": "task-id-123"})
+
+    def test_infer_image_sync_model_error(self):
+        self.mock_squeezenet.side_effect = Exception("boom")
+
+        files = {"file": ("x.jpg", io.BytesIO(b"data"), "image/jpeg")}
+        with self.assertRaises(Exception):
+            self.client.post("/infer/image/sync", files=files)

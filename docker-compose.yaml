@@ -1,21 +1,78 @@
 services:
   redis:
+    profiles:
+      - "dev"
+      - "prod"
     image: redis:7-alpine
     ports:
       - "6379:6379"
-
+  inference-dev:
+    profiles:
+      - "dev"
+    build:
+      context: ./inference
+      dockerfile: Dockerfile
+    container_name: inference-dev
+    ports:
+      - "8001:80"
+    volumes:
+      - ./inference/app:/code/app
+      - ./squeezenet.onnx:/code/squeezenet.onnx
+    environment:
+      - SQUEEZENET_MODEL_PATH=/code/squeezenet.onnx
+      - REDIS_URL=redis://redis:6379/0
+    command: fastapi dev app/main.py --host 0.0.0.0 --port 80
+    depends_on:
+      - redis
+  inference:
+    profiles:
+      - "prod"
+    build:
+      context: ./inference
+      dockerfile: Dockerfile
+    container_name: inference
+    ports:
+      - "8001:80"
+    volumes:
+      - ./squeezenet.onnx:/code/squeezenet.onnx
+    environment:
+      - SQUEEZENET_MODEL_PATH=/code/squeezenet.onnx
+      - REDIS_URL=redis://redis:6379/0
+    command: fastapi run app/main.py --host 0.0.0.0 --port 80
+    depends_on:
+      - redis
   celery:
+    profiles:
+      - "dev"
+      - "prod"
     build:
       context: ./inference
       dockerfile: Dockerfile.worker
     container_name: celery
     volumes:
       - ./inference/app:/app
-    command: celery -A app.tasks flower worker --loglevel=info --concurrency=${THREADS_PER_WORKER}
+      - ./squeezenet.onnx:/app/squeezenet.onnx
+    command: sh -c "cd /app && celery -A tasks worker --loglevel=info --concurrency=${THREADS_PER_WORKER:-1}"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - SQUEEZENET_MODEL_PATH=/app/squeezenet.onnx
+      - BACKEND_WEBHOOK=""
+    depends_on:
+      - redis
+  flower:
+    profiles:
+      - "dev"
+      - "prod"
+    build:
+      context: ./inference
+      dockerfile: Dockerfile.worker
+    container_name: flower
+    volumes:
+      - ./inference/app:/app
+    command: sh -c "cd /app && celery -A tasks flower --port=5555 --host=0.0.0.0"
     ports:
       - "5555:5555"
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - BACKEND_WEBHOOK=""
     depends_on:
       - redis

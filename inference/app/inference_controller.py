@@ -6,7 +6,10 @@ import os
 
 # Inyección de dependencia para la tarea de Celery
 def get_process_image_task():
-    from .tasks import process_image_task
+    try:
+        from tasks import process_image_task
+    except ImportError:
+        from .tasks import process_image_task
     return process_image_task
 
 
@@ -31,10 +34,10 @@ def infer_image(
 
 @router.post("/infer/image/sync")
 def infer_image_sync(file: UploadFile = File(...)):
-    from models import SqueezeNet
+    from app.models.squeezenet import SqueezeNet  # MODIFICADO
     model_path = os.getenv("SQUEEZENET_MODEL_PATH", "squeezenet.onnx")
     model = SqueezeNet(model_path)
     image_data = file.file.read()
-    predictions = model(image_data)
-    # Ajustar formato de respuesta: lista de dicts con label y confidence
-    return JSONResponse(content={"category": predictions})
+    result = model(image_data)
+
+    return JSONResponse(content=result)
