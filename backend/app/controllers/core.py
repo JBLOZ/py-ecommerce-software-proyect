@@ -5,6 +5,8 @@ from utils import get_logger
 import requests
 import os
 import uuid
+import unicodedata
+import re
 
 logger = get_logger("backend_core_controller")
 
@@ -42,19 +44,46 @@ def get_products():
 def search_text(payload: dict = Body(...)):
     query = payload.get("query", "").lower()
     logger.info(f"Búsqueda de texto solicitada - query: '{query}'")
-    
-    session = DatabaseRegistry.session()
-    # Buscar categorías por coincidencia de nombre
-    all_cats = session.exec(select(Category)).all()
-    matched = [c.name for c in all_cats if query and c.name.lower() in query]
+
+    # Normalizar texto: quitar tildes y signos de puntuación
+    def normalize(text):
+        text = unicodedata.normalize('NFD', text)
+        text = text.encode('ascii', 'ignore').decode('utf-8')
+        text = re.sub(r'[^\w\s]', '', text)
+        return text.lower()
+    query_norm = normalize(query)
+    tokens = query_norm.split()
+
+    # Diccionario de palabras clave por categoría
+    category_keywords = {
+        "camisetas": ["camiseta", "camisa", "polo"],
+        "pantalones": ["pantalon", "jean", "vaquero", "bermuda", "chino"],
+        "zapatos": ["zapato", "zapatilla", "calzado", "tenis"],
+        "telefonos": ["telefono", "movil", "smartphone", "celular"],
+        "portatiles": ["portatil", "laptop", "notebook", "ordenador"],
+        "otros": []
+    }
+
+    # Buscar coincidencias de palabras clave
+    matched = set()
+    for cat, keywords in category_keywords.items():
+        for kw in keywords:
+            if kw in tokens:
+                matched.add(cat)
     logger.debug(f"Categorías encontradas: {matched}")
-    
-    # Obtener productos de categorías coincidentes
+
+    session = DatabaseRegistry.session()
+    all_cats = session.exec(select(Category)).all()
     products = session.exec(select(Product)).all()
-    filtered = [p for p in products if p.category_id in [c.id for c in all_cats if c.name in matched]]
+
+    # Obtener ids de categorías coincidentes ignorando mayúsculas/minúsculas
+    matched_ids = [c.id for c in all_cats if c.name.lower() in matched]
+    filtered = [p for p in products if p.category_id in matched_ids]
     logger.info(f"Búsqueda completada - {len(matched)} categorías, {len(filtered)} productos")
-    
-    return {"categories": matched, "products": [{"id": p.id, "name": p.name, "price": p.price} for p in filtered]}
+
+    # Devolver nombres de categoría reales (capitalizados) para la respuesta
+    matched_names = [c.name for c in all_cats if c.id in matched_ids]
+    return {"categories": matched_names, "products": [{"id": p.id, "name": p.name, "price": p.price} for p in filtered]}
 
 
 @router.post("/search/image")

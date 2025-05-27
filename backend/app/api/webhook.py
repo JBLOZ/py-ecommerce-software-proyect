@@ -8,6 +8,7 @@ https://fastapi.tiangolo.com/advanced/openapi-webhooks/
 """
 
 from typing import List
+import os
 
 from fastapi import APIRouter, status
 from pydantic import BaseModel, Field
@@ -42,16 +43,27 @@ async def receive_task_result(payload: TaskResult):
     logger.info(f"Recibida notificación de tarea completada: {payload.task_id}")
     logger.debug(f"Estado de la tarea: {payload.state}")
     logger.debug(f"Número de categorías recibidas: {len(payload.categories)}")
-    
+
+    # Leer umbral de confianza desde variable de entorno (por defecto 0.1)
+    try:
+        threshold = float(os.getenv("INFERENCE_CONFIDENCE_THRESHOLD", 0.1))
+    except Exception:
+        threshold = 0.1
+    logger.info(f"Umbral de confianza para categorías: {threshold}")
+
+    # Filtrar categorías por score
+    filtered_categories = [cat for cat in payload.categories if cat.score > threshold]
+    logger.info(f"Categorías filtradas (>{threshold}): {len(filtered_categories)}")
+
     try:
         result_service = ResultService()
-        result_service.store_result(payload.task_id, payload.categories)
+        result_service.store_result(payload.task_id, filtered_categories)
         logger.info(f"Resultado almacenado exitosamente para tarea: {payload.task_id}")
-        
+
         # Log category details in debug mode
-        for i, pred in enumerate(payload.categories):
-            logger.debug(f"Categoría {i+1}: label={pred.label}, score={pred.score:.4f}")
-            
+        for i, pred in enumerate(filtered_categories):
+            logger.debug(f"Categoría {i}: label={pred.label}, score={pred.score:.4f}")
+
         return {"status": "received"}
     except Exception as e:
         logger.error(f"Error almacenando resultado para tarea {payload.task_id}: {str(e)}", exc_info=True)

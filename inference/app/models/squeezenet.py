@@ -63,7 +63,10 @@ class SqueezeNet:
 
         return {
             "category": [
-                {"label": int(idx) + 1, "confidence": float(probabilities[idx])}
+                {
+                    "label": int(idx) + 1,
+                    "confidence": f"{probabilities[idx]:.10f}"
+                }
                 for idx in top3_idx
             ]
         }

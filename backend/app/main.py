@@ -3,7 +3,7 @@ from api import webhook_router
 from controllers import core_router, tasks_router
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from db import DatabaseRegistry, load_sample_data
+from db import DatabaseRegistry
 from utils import get_logger
 
 logger = get_logger("backend_main")
@@ -11,18 +11,14 @@ logger = get_logger("backend_main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Inicializar la base de datos y cargar datos de muestra
+    # Inicializar la base de datos
     logger.info("Iniciando aplicación backend")
     logger.info("Inicializando la conexión a la base de datos...")
     DatabaseRegistry.initialize(
         os.getenv("DB_URL", "mysql+pymysql://user:password@db/ecommerce")
     )
     logger.info("Base de datos inicializada correctamente.")
-    
-    # Cargar datos sintéticos
-    logger.info("Iniciando carga de datos de muestra...")
-    load_sample_data()
-    logger.info("Carga de datos de muestra completada.")
+    # Ya no se cargan datos de muestra desde JSON
 
     yield
 
