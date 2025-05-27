@@ -1,5 +1,8 @@
 services:
   db:
+    profiles:
+      - "dev"
+      - "prod"
     image: mariadb:latest
     container_name: ecommerce_mariadb
     environment:
@@ -11,9 +14,13 @@ services:
       - "3306:3306"
     volumes:
       - mariadb_data:/var/lib/mysql
+      - ./data/init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
 
   adminer:
+    profiles:
+      - "dev"
+      - "prod"
     image: adminer:latest
     container_name: ecommerce_adminer
     ports:
@@ -22,8 +29,32 @@ services:
       - db
     restart: unless-stopped
 
-  # Aplicación en producción - copia el código fuente en la imagen
+  backend-dev:
+    profiles:
+      - "dev"
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile
+    container_name: backend-dev
+    environment:
+      - DB_URL=mysql+pymysql://user:password@db/ecommerce
+      - PYTHONPATH=src
+      - ENVIRONMENT=dev
+    ports:
+      - "8000:80"
+    volumes:
+      - ./backend/app:/code/src
+      - ./logs:/logs
+      - ./data:/code/data
+    depends_on:
+      - db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: /code/scripts/wait-for-it.sh db:3306 -t 60 -- fastapi dev src/main.py --host 0.0.0.0 --port 80
+
   backend:
+    profiles:
+      - "prod"
     build:
       context: .
       dockerfile: ./backend/Dockerfile
@@ -31,10 +62,11 @@ services:
     environment:
       - DB_URL=mysql+pymysql://user:password@db/ecommerce
       - PYTHONPATH=src
+      - ENVIRONMENT=prod
     ports:
       - "8000:80"
     volumes:
-      - ./logs:/code/logs
+      - ./logs:/logs
       - ./data:/code/data
     depends_on:
       - db
@@ -42,9 +74,7 @@ services:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
     command: /code/scripts/wait-for-it.sh db:3306 -t 60 -- fastapi run src/main.py --proxy-headers --port 80
-      
-volumes:
-  mariadb_data:
+
   redis:
     profiles:
       - "dev"
@@ -52,22 +82,25 @@ volumes:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+
   inference-dev:
     profiles:
       - "dev"
     build:
-      context: ./inference
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: inference/Dockerfile
     container_name: inference-dev
     ports:
       - "8001:80"
     volumes:
-      - ./inference/app:/code/app
-      - ./squeezenet.onnx:/code/squeezenet.onnx
+      - ./inference/app:/app
+      - ./squeezenet.onnx:/squeezenet.onnx
+      - ./logs:/logs
     environment:
-      - SQUEEZENET_MODEL_PATH=/code/squeezenet.onnx
+      - SQUEEZENET_MODEL_PATH=/squeezenet.onnx
       - REDIS_URL=redis://redis:6379/0
-    command: fastapi dev app/main.py --host 0.0.0.0 --port 80
+      - ENVIRONMENT=dev
+    command: fastapi dev main.py --host 0.0.0.0 --port 80
     depends_on:
       - redis
 
@@ -75,46 +108,70 @@ volumes:
     profiles:
       - "prod"
     build:
-      context: ./inference
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: inference/Dockerfile
     container_name: inference
     ports:
       - "8001:80"
     volumes:
-      - ./squeezenet.onnx:/code/squeezenet.onnx
+      - ./squeezenet.onnx:/squeezenet.onnx
+      - ./logs:/logs
     environment:
-      - SQUEEZENET_MODEL_PATH=/code/squeezenet.onnx
+      - SQUEEZENET_MODEL_PATH=/squeezenet.onnx
       - REDIS_URL=redis://redis:6379/0
-    command: fastapi run app/main.py --host 0.0.0.0 --port 80
+      - ENVIRONMENT=prod
+    command: fastapi run main.py --host 0.0.0.0 --port 80
     depends_on:
       - redis
 
-  celery:
+  celery-dev:
     profiles:
       - "dev"
-      - "prod"
     build:
-      context: ./inference
-      dockerfile: Dockerfile.worker
-    container_name: celery
+      context: .
+      dockerfile: inference/Dockerfile.worker
+    container_name: celery-dev
     volumes:
       - ./inference/app:/app
       - ./squeezenet.onnx:/app/squeezenet.onnx
-    command: sh -c "cd /app && celery -A tasks worker --loglevel=info --concurrency=${THREADS_PER_WORKER:-1}"
+      - ./logs:/logs
+    command: sh -c "cd /app && celery -A tasks worker --loglevel=info --concurrency=\${THREADS_PER_WORKER:-1} --queues=image"
     environment:
       - REDIS_URL=redis://redis:6379/0
       - SQUEEZENET_MODEL_PATH=/app/squeezenet.onnx
-      - BACKEND_WEBHOOK=""
+      - BACKEND_WEBHOOK_URL=http://backend-dev:80/webhook/task_completed
+      - ENVIRONMENT=dev
     depends_on:
       - redis
-  flower:
+      - backend-dev
+
+  celery:
     profiles:
-      - "dev"
       - "prod"
     build:
-      context: ./inference
-      dockerfile: Dockerfile.worker
-    container_name: flower
+      context: .
+      dockerfile: inference/Dockerfile.worker
+    container_name: celery
+    volumes:
+      - ./squeezenet.onnx:/app/squeezenet.onnx
+      - ./logs:/logs
+    command: sh -c "cd /app && celery -A tasks worker --loglevel=info --concurrency=\${THREADS_PER_WORKER:-1} --queues=image"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - SQUEEZENET_MODEL_PATH=/app/squeezenet.onnx
+      - BACKEND_WEBHOOK_URL=http://backend:80/webhook/task_completed
+      - ENVIRONMENT=prod
+    depends_on:
+      - redis
+      - backend
+
+  flower-dev:
+    profiles:
+      - "dev"
+    build:
+      context: .
+      dockerfile: inference/Dockerfile.worker
+    container_name: flower-dev
     volumes:
       - ./inference/app:/app
     command: sh -c "cd /app && celery -A tasks flower --port=5555 --host=0.0.0.0"
@@ -122,6 +179,25 @@ volumes:
       - "5555:5555"
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=dev
     depends_on:
       - redis
 
+  flower:
+    profiles:
+      - "prod"
+    build:
+      context: .
+      dockerfile: inference/Dockerfile.worker
+    container_name: flower
+    command: sh -c "cd /app && celery -A tasks flower --port=5555 --host=0.0.0.0"
+    ports:
+      - "5555:5555"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=prod
+    depends_on:
+      - redis
+
+volumes:
+  mariadb_data:
