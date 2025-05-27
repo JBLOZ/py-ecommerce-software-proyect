@@ -201,5 +201,22 @@ services:
     depends_on:
       - redis
 
+  frontend-dev:
+    profiles:
+      - "dev"
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend-dev
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./frontend:/app
+    environment:
+      - BACKEND_URL=http://backend-dev:80
+    command: python app.py
+    depends_on:
+      - backend-dev
+
 volumes:
   mariadb_data:
