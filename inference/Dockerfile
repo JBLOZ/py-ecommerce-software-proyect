@@ -6,13 +6,13 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /code
+WORKDIR /app
 
 # Install Python dependencies
-COPY ./requirements.txt /code/requirements.txt
+COPY ./inference/requirements.txt /requirements.txt
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
-RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+RUN pip install --no-cache-dir --upgrade -r /requirements.txt
 
-COPY ./app /code/app
+COPY ./inference/app /app
 
-CMD ["fastapi", "run", "app/main.py", "--host", "0.0.0.0", "--port", "80"]
+CMD ["fastapi", "run", "main.py", "--host", "0.0.0.0", "--port", "80"]
