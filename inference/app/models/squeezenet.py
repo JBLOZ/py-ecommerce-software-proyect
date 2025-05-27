@@ -4,6 +4,13 @@ from PIL import Image
 from io import BytesIO
 from onnxruntime import InferenceSession
 
+try:
+    from utils import get_logger
+except ImportError:
+    from ..utils import get_logger
+
+logger = get_logger("squeezenet_model")
+
 
 class SqueezeNet:
     __session: Optional[InferenceSession] = None
@@ -20,33 +27,43 @@ class SqueezeNet:
         image = Image.open(BytesIO(image_data)).convert('RGB')
         image = image.resize((224, 224))
         
-        img_array = np.array(image, dtype=np.float32) / 255.0
+        # Asegurar que todo se mantenga en float32
+        img_array = np.array(image, dtype=np.float32) / np.float32(255.0)
         
         mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
         std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
         
-        img_array = (img_array - mean) / std
-        img_array = np.transpose(img_array, (2, 0, 1))
-        img_array = np.expand_dims(img_array, axis=0)
+        # Normalización manteniendo float32 - operaciones explícitas
+        img_array = img_array.astype(np.float32)
+        mean = mean.astype(np.float32)
+        std = std.astype(np.float32)
+        img_array = ((img_array - mean) / std).astype(np.float32)
         
-        return img_array.astype(np.float32)
-
+        img_array = np.transpose(img_array, (2, 0, 1)).astype(np.float32)
+        img_array = np.expand_dims(img_array, axis=0).astype(np.float32)
+        
+        return img_array
+    
     def __call__(self, image_data: bytes):
         img_tensor = self.__preprocess_image(image_data)
 
         # Ejecutar modelo
         outputs = self.__session.run([self.__output_name],
-                                    {self.__input_name: img_tensor})[0]
-
-        # Aplanar salida (1,1000,1,1) → (1000,)
-        probabilities = outputs.squeeze()
+                                    {self.__input_name: img_tensor})[0]        # Aplanar salida (1,1000,1,1) → (1000,) y asegurar float32
+        logits = outputs.squeeze().astype(np.float32)
+        
+        # Convertir logits a probabilidades usando softmax
+        # softmax(x) = exp(x) / sum(exp(x))
+        max_logit = np.max(logits).astype(np.float32)
+        exp_logits = np.exp((logits - max_logit).astype(np.float32))  # Estabilidad numérica
+        probabilities = (exp_logits / np.sum(exp_logits)).astype(np.float32)
 
         # Top-3 índices ordenados por probabilidad descendente
         top3_idx = np.argsort(probabilities)[-3:][::-1]
 
         return {
             "category": [
-                {"label": int(idx), "confidence": float(probabilities[idx])}
+                {"label": int(idx) + 1, "confidence": float(probabilities[idx])}
                 for idx in top3_idx
             ]
         }
