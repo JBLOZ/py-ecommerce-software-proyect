@@ -58,10 +58,10 @@ def search_text(payload: dict = Body(...)):
     category_keywords = {
         "camisetas": ["camiseta", "camisa", "polo"],
         "pantalones": ["pantalon", "jean", "vaquero", "bermuda", "chino"],
-        "zapatos": ["zapato", "zapatilla", "calzado", "tenis"],
+        "zapatos": ["zapato", "zapatilla", "calzado"],
         "telefonos": ["telefono", "movil", "smartphone", "celular"],
         "portatiles": ["portatil", "laptop", "notebook", "ordenador"],
-        "otros": []
+        "otros": ["otros"]
     }
 
     # Buscar coincidencias de palabras clave
@@ -76,8 +76,12 @@ def search_text(payload: dict = Body(...)):
     all_cats = session.exec(select(Category)).all()
     products = session.exec(select(Product)).all()
 
-    # Obtener ids de categorías coincidentes ignorando mayúsculas/minúsculas
-    matched_ids = [c.id for c in all_cats if c.name.lower() in matched]
+    # Obtener ids de categorías coincidentes ignorando mayúsculas/minúsculas y tildes
+    def normalize_cat_name(name):
+        name = unicodedata.normalize('NFD', name)
+        name = name.encode('ascii', 'ignore').decode('utf-8')
+        return name.lower()
+    matched_ids = [c.id for c in all_cats if normalize_cat_name(c.name) in matched]
     filtered = [p for p in products if p.category_id in matched_ids]
     logger.info(f"Búsqueda completada - {len(matched)} categorías, {len(filtered)} productos")
 
