@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS categories (
 CREATE TABLE IF NOT EXISTS products (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100),
+    description TEXT,
     price DECIMAL(10, 2),
     category_id INT,
     FOREIGN KEY (category_id) REFERENCES categories(id)
