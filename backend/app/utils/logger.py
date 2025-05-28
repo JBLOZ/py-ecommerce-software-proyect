@@ -10,10 +10,21 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 # Configuración global para centralizar logs de todo el backend
-log_file_path = '/logs/backend.log'
-log_dir = os.path.dirname(log_file_path)
-if log_dir and not os.path.exists(log_dir):
-    os.makedirs(log_dir, exist_ok=True)
+# Usar ruta relativa que funcione tanto en local como en CI/CD
+# En modo test, usar directorio temporal si logs no está disponible
+def get_log_file_path():
+    try:
+        # Intentar usar el directorio logs en el proyecto
+        log_dir = os.path.join(os.getcwd(), 'logs')
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
+        return os.path.join(log_dir, 'backend.log')
+    except (PermissionError, OSError):
+        # En caso de error (como en CI/CD), usar directorio temporal
+        import tempfile
+        return os.path.join(tempfile.gettempdir(), 'backend.log')
+
+log_file_path = get_log_file_path()
 
 # Detectar el perfil de ejecución (dev o prod)
 environment = os.getenv("ENVIRONMENT", "prod").lower()

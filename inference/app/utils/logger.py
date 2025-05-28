@@ -10,7 +10,8 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 # Configuración global para centralizar logs de todo inference
-log_file_path = '/logs/inference.log'
+# Usar ruta relativa que funcione tanto en local como en CI/CD
+log_file_path = os.path.join(os.getcwd(), 'logs', 'inference.log')
 log_dir = os.path.dirname(log_file_path)
 if log_dir and not os.path.exists(log_dir):
     os.makedirs(log_dir, exist_ok=True)
