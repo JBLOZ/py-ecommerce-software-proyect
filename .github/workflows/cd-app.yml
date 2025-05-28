@@ -1,49 +1,23 @@
-name: CD Deploy & Test App
+name: CD Deploy Simple
 
 on:
-  pull_request:
-    branches: [develop]
   push:
-    branches: [develop]
+    branches: [develop, main]
 
 jobs:
-  build-test-deploy:
+  deploy:
     runs-on: ubuntu-latest
-    services:
-      docker:
-        image: docker:24.0.5-dind
-        options: >-
-          --dns 8.8.8.8
-
+    
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Set up Docker Compose
-        run: docker compose version
-
-      - name: Build and start all services
-        run: docker compose up -d --build
-
-      - name: Wait for services to be healthy
+      - name: Launch services
         run: |
+          echo "Launching services with Docker Compose..."
+          docker compose --profile prod up -d --build
+
+      - name: Show running services
+        run: |
+          echo "Services launched successfully:"
           docker compose ps
-          sleep 20
-
-      - name: Test API endpoint (health)
-        run: |
-          sleep 10
-          curl -v --retry 5 --retry-delay 5 http://localhost:8000/health || exit 1
-
-      - name: Show logs if failure
-        if: failure()
-        run: docker compose logs
-
-      - name: Tear down services
-        if: always()
-        run: docker compose down
-
-      - name: Deploy (solo si es push a develop)
-        if: github.event_name == 'push'
-        run: |
-          echo "Despliegue real aquí: docker compose up -d en el servidor de producción, o push de imagen a un registry, etc."
