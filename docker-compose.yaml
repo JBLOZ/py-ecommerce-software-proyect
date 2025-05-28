@@ -28,7 +28,6 @@ services:
     depends_on:
       - db
     restart: unless-stopped
-
   backend-dev:
     profiles:
       - "dev"
@@ -41,6 +40,7 @@ services:
       - PYTHONPATH=src
       - ENVIRONMENT=dev
       - INFERENCE_CONFIDENCE_THRESHOLD=0.1
+      - INFERENCE_SERVICE_URL=http://host.docker.internal:8001
     ports:
       - "8000:80"
     volumes:
@@ -52,7 +52,6 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: /code/scripts/wait-for-it.sh db:3306 -t 60 -- fastapi dev src/main.py --host 0.0.0.0 --port 80
-
   backend:
     profiles:
       - "prod"
@@ -65,6 +64,7 @@ services:
       - PYTHONPATH=src
       - ENVIRONMENT=prod
       - INFERENCE_CONFIDENCE_THRESHOLD=0.1
+      - INFERENCE_SERVICE_URL=http://host.docker.internal:8001
     ports:
       - "8000:80"
     volumes:
@@ -123,7 +123,6 @@ services:
     command: fastapi run main.py --host 0.0.0.0 --port 80
     depends_on:
       - redis
-
   celery-dev:
     profiles:
       - "dev"
@@ -139,12 +138,12 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - MODEL_PATH=/app/model.onnx
-      - BACKEND_WEBHOOK_URL=http://backend-dev:80/webhook/task_completed
+      - BACKEND_WEBHOOK_URL=http://host.docker.internal:8000/webhook/task_completed
       - ENVIRONMENT=dev
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - redis
-      - backend-dev
-
   celery:
     profiles:
       - "prod"
@@ -159,11 +158,12 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - MODEL_PATH=/app/model.onnx
-      - BACKEND_WEBHOOK_URL=http://backend:80/webhook/task_completed
+      - BACKEND_WEBHOOK_URL=http://host.docker.internal:8000/webhook/task_completed
       - ENVIRONMENT=prod
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - redis
-      - backend
 
   flower-dev:
     profiles:
