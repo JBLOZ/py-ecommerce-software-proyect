@@ -2,9 +2,15 @@
 
 import os
 from typing import Optional
-
+import logging
 from sqlalchemy import Engine
 from sqlmodel import create_engine, Session
+
+logger = logging.getLogger("registry_logger")
+logger.setLevel(logging.INFO)
+handle = logging.StreamHandler()
+handle.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+logger.addHandler(handle)
 
 
 class DatabaseRegistry:
@@ -36,3 +42,17 @@ class DatabaseRegistry:
     def __create_session(cls) -> Session:
         """Returns the session for the database."""
         cls.session = Session(cls.__get_engine())
+
+    @classmethod
+    def inicializar(cls, sql_path):
+        """Inicializa la base de datos ejecutando el script init.sql."""
+        try:
+            with open(sql_path, "r", encoding="utf-8") as f:
+                sql_script = f.read()
+            engine = cls.__get_engine()
+
+            with engine.connect() as conn:
+                conn.exec_driver_sql(sql_script, execution_options={"autocommit": True})
+
+        except Exception as e:
+            logger.exception(f"Excepcion ejecutando {sql_path}: {e}")

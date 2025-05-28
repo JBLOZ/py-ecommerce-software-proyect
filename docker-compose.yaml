@@ -19,3 +19,13 @@ services:
       - BACKEND_WEBHOOK=""
     depends_on:
       - redis
+
+  backend:
+    build: 
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: backend
+    volumes:
+      -
+
+  
