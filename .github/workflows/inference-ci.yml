@@ -6,13 +6,13 @@ on:
       - 'inference/**'
       - 'tests/**'
       - '.flake8'
-      - '.github/workflows/ci-inference.yaml'
+      - '.github/workflows/inference-ci.yml'
   pull_request:
     paths:
       - 'inference/**'
       - 'tests/**'
       - '.flake8'
-      - '.github/workflows/ci-inference.yaml'
+      - '.github/workflows/inference-ci.yml'
 
 jobs:
   lint-test:
