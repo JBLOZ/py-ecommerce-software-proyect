@@ -76,3 +76,46 @@ class SqueezeNet:
                 {"label": int(i), "confidence": float(preds[i])} for i in top3_idx
             ]
         }
+
+import pytest
+import numpy as np
+from io import BytesIO
+
+from tests.inference.test_inference_squeezenet import SqueezeNet, InferenceSession
+
+class DummySession:
+    def get_inputs(self):
+        return [type("I", (), {"name": "in"})()]
+    def get_outputs(self):
+        return [type("O", (), {"name": "out"})()]
+    def run(self, outs, feeds):
+        # Simula salida (1,1000,1,1) con valores crecientes
+        arr = np.arange(1000, dtype=np.float32).reshape(1, 1000, 1, 1)
+        return [arr]
+
+def test_squeezenet_call_top3():
+    # Forzamos la sesión y nombres
+    SqueezeNet._SqueezeNet__session = DummySession()
+    SqueezeNet._SqueezeNet__input_name = "in"
+    SqueezeNet._SqueezeNet__output_name = "out"
+    model = SqueezeNet("fake.onnx")
+    # Imagen dummy
+    result = model(b"fakeimg")
+    # Debe devolver top-3 labels
+    assert "category" in result
+    assert len(result["category"]) == 3
+    # El label más alto debe ser 999
+    assert result["category"][0]["label"] == 999
+
+def test_squeezenet_preprocess_image_fallback():
+    # Forzamos error en Pillow
+    class BrokenImage:
+        @staticmethod
+        def open(_): raise RuntimeError("fail")
+    import tests.inference.test_inference_squeezenet as mod
+    orig = mod.Image
+    mod.Image = BrokenImage
+    arr = SqueezeNet._SqueezeNet__preprocess_image(b"broken")
+    mod.Image = orig
+    assert arr.shape == (1, 3, 224, 224)
+    assert np.all(arr == 0)

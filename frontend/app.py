@@ -1,8 +1,10 @@
 import gradio as gr
 import requests
 import time
+import os
 
-BACKEND_URL = "http://backend-dev:80"  
+# Usar host.docker.internal por defecto para Docker Desktop
+BACKEND_URL = os.getenv("BACKEND_URL", "http://host.docker.internal:8000")
 POLL_INTERVAL = 2  # segundos
 MAX_POLLS = 10
 
@@ -126,6 +128,13 @@ with gr.Blocks(theme=gr.themes.Soft(), css=".gradio-container {max-width: 700px 
         }
 
     search_text_btn.click(
+        on_search_text,
+        inputs=[text_in],
+        outputs=[loader, cats_out, prods_out, msg_out],
+        show_progress=True
+    )
+    # Permitir buscar pulsando Enter en el textbox
+    text_in.submit(
         on_search_text,
         inputs=[text_in],
         outputs=[loader, cats_out, prods_out, msg_out],

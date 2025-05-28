@@ -4,7 +4,6 @@ from db import DatabaseRegistry, Category, Product
 from utils import get_logger
 import requests
 import os
-import uuid
 import unicodedata
 import re
 
@@ -49,7 +48,7 @@ def search_text(payload: dict = Body(...)):
     def normalize(text):
         text = unicodedata.normalize('NFD', text)
         text = text.encode('ascii', 'ignore').decode('utf-8')
-        text = re.sub(r'[^\w\s]', '', text)
+        text = re.sub(r'[\W_]+', ' ', text)
         return text.lower()
     query_norm = normalize(query)
     tokens = query_norm.split()
@@ -83,11 +82,41 @@ def search_text(payload: dict = Body(...)):
         return name.lower()
     matched_ids = [c.id for c in all_cats if normalize_cat_name(c.name) in matched]
     filtered = [p for p in products if p.category_id in matched_ids]
+
+    # búsqueda por palabra en nombre o descripción (palabra completa, no subcadena) ---
+    # Para cada producto, separar el nombre y descripción en palabras y buscar
+    # coincidencias exactas con las palabras de la query
+    extra_products = []
+    query_words = set(tokens)
+    for p in products:
+        name_words = set(normalize(p.name).split())
+        desc_words = set(normalize(p.description or '').split())
+        # Coincidencia si alguna palabra de la query está exactamente en el nombre o descripción
+        if query_words & (name_words | desc_words):
+            if p not in filtered:
+                extra_products.append(p)
+    filtered.extend(extra_products)
+
     logger.info(f"Búsqueda completada - {len(matched)} categorías, {len(filtered)} productos")
 
     # Devolver nombres de categoría reales (capitalizados) para la respuesta
     matched_names = [c.name for c in all_cats if c.id in matched_ids]
-    return {"categories": matched_names, "products": [{"id": p.id, "name": p.name, "price": p.price} for p in filtered]}
+    # Si no se detectó ninguna categoría pero hay productos, añadir la categoría de cada producto a categories (únicas)
+    if not matched_names and filtered:
+        matched_names = list({next((c.name for c in all_cats if c.id == p.category_id),
+                                   None) for p in filtered if p.category_id})
+    return {
+        "categories": matched_names,
+        "products": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "price": p.price,
+                "category": next((c.name for c in all_cats if c.id == p.category_id), None)
+            }
+            for p in filtered
+        ]
+    }
 
 
 @router.post("/search/image")
@@ -101,11 +130,11 @@ async def search_image(file: UploadFile = File(...)):
         if not file.content_type or not file.content_type.startswith("image/"):
             logger.warning(f"Archivo inválido recibido - tipo: {file.content_type}")
             raise HTTPException(status_code=400, detail="El archivo debe ser una imagen")
-        
+
         # Preparar el archivo para enviarlo al servicio de inferencia
         file_data = await file.read()
         logger.debug(f"Imagen leída - tamaño: {len(file_data)} bytes")
-        
+
         # Enviar la imagen al servicio de inferencia
         files = {"file": (file.filename, file_data, file.content_type)}
         logger.debug(f"Enviando imagen al servicio de inferencia: {INFERENCE_SERVICE_URL}")
@@ -114,18 +143,19 @@ async def search_image(file: UploadFile = File(...)):
             files=files,
             timeout=30
         )
-        
+
         if response.status_code != 200:
             logger.error(f"Error del servicio de inferencia - status: {response.status_code}")
             raise HTTPException(
-                status_code=500, 
+                status_code=500,
                 detail="Error al procesar la imagen en el servicio de inferencia"
             )
-        
+
         result = response.json()
         logger.info(f"Tarea de inferencia creada exitosamente - task_id: {result['task_id']}")
         return {"task_id": result["task_id"]}
-        
+    except HTTPException as e:
+        raise e
     except requests.RequestException as e:
         logger.error(f"Error de conexión con servicio de inferencia: {str(e)}", exc_info=True)
         raise HTTPException(

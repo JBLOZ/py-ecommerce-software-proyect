@@ -9,7 +9,7 @@ except ImportError:
 logger = get_logger("inference_tasks")
 
 try:
-    from models import SqueezeNet  
+    from models import SqueezeNet
 except ImportError:
     from .models.squeezenet import SqueezeNet
 
@@ -32,14 +32,14 @@ logger.info("Celery configurado correctamente")
 def process_image_task(image_data: bytes):
     # Get the actual task ID from Celery
     task_id = process_image_task.request.id
-    
+
     logger.info(f"Procesando tarea de imagen con ID: {task_id}")
     logger.debug(f"Tamaño de datos de imagen: {len(image_data)} bytes")
 
     try:
-        model_path = os.getenv("SQUEEZENET_MODEL_PATH", "squeezenet.onnx")
+        model_path = os.getenv("MODEL_PATH", "model.onnx")
         logger.debug(f"Cargando modelo desde: {model_path}")
-        model = SqueezeNet(model_path)        
+        model = SqueezeNet(model_path)
         logger.debug("Modelo SqueezeNet cargado correctamente")
 
         logger.info("Ejecutando inferencia en la imagen")
@@ -59,26 +59,27 @@ def process_image_task(image_data: bytes):
             "state": "completed",
             "categories": categories
         }
-        
+
         logger.debug(f"Enviando respuesta al webhook: {BACKEND_WEBHOOK}")
         response = requests.post(BACKEND_WEBHOOK, json=response_data, timeout=10)
         logger.info(f"Respuesta enviada exitosamente. Status: {response.status_code}")
 
     except Exception as e:
         logger.error(f"Error procesando tarea {task_id}: {str(e)}", exc_info=True)
-        
+
         error_response = {
             "task_id": task_id,
             "state": "failed",
             "error": str(e)
         }
-        
+
         try:
             logger.debug(f"Enviando error al webhook: {BACKEND_WEBHOOK}")
             response = requests.post(BACKEND_WEBHOOK, json=error_response, timeout=10)
             logger.warning(f"Error enviado al webhook. Status: {response.status_code}")
         except Exception as webhook_error:
             logger.error(f"Error enviando webhook de fallo: {str(webhook_error)}", exc_info=True)
+
 
 @celery_app.task(name='app.tasks.process_image_task')
 def process_image_task_alias(image_data: bytes):

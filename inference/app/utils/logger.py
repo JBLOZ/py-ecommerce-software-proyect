@@ -42,10 +42,11 @@ if not any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers):
 
 # Redirigir logs de uvicorn y FastAPI al root logger
 for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access", "fastapi"):
-    l = logging.getLogger(logger_name)
-    if l.name == logger_name:
-        l.handlers = []
-        l.propagate = True
+    log = logging.getLogger(logger_name)
+    if log.name == logger_name:
+        log.handlers = []
+        log.propagate = True
+
 
 def get_logger(name: str) -> logging.Logger:
     """

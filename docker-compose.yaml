@@ -96,10 +96,9 @@ services:
       - "8001:80"
     volumes:
       - ./inference/app:/app
-      - ./squeezenet.onnx:/squeezenet.onnx
       - ./logs:/logs
     environment:
-      - SQUEEZENET_MODEL_PATH=/squeezenet.onnx
+      - MODEL_PATH=/app/model.onnx
       - REDIS_URL=redis://redis:6379/0
       - ENVIRONMENT=dev
     command: fastapi dev main.py --host 0.0.0.0 --port 80
@@ -116,10 +115,9 @@ services:
     ports:
       - "8001:80"
     volumes:
-      - ./squeezenet.onnx:/squeezenet.onnx
       - ./logs:/logs
     environment:
-      - SQUEEZENET_MODEL_PATH=/squeezenet.onnx
+      - MODEL_PATH=/app/model.onnx
       - REDIS_URL=redis://redis:6379/0
       - ENVIRONMENT=prod
     command: fastapi run main.py --host 0.0.0.0 --port 80
@@ -134,13 +132,13 @@ services:
       dockerfile: inference/Dockerfile.worker
     container_name: celery-dev
     volumes:
-      - ./inference/app:/app
-      - ./squeezenet.onnx:/app/squeezenet.onnx
+      - ./model.onnx:/app/model.onnx
       - ./logs:/logs
-    command: sh -c "cd /app && celery -A tasks worker --loglevel=info --concurrency=\${THREADS_PER_WORKER:-1} --queues=image"
+      - ./inference/app:/app
+    command: sh -c "cd /app && celery -A tasks worker --loglevel=info --concurrency=${THREADS_PER_WORKER:-1} --queues=image"
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - SQUEEZENET_MODEL_PATH=/app/squeezenet.onnx
+      - MODEL_PATH=/app/model.onnx
       - BACKEND_WEBHOOK_URL=http://backend-dev:80/webhook/task_completed
       - ENVIRONMENT=dev
     depends_on:
@@ -155,12 +153,12 @@ services:
       dockerfile: inference/Dockerfile.worker
     container_name: celery
     volumes:
-      - ./squeezenet.onnx:/app/squeezenet.onnx
+      - ./model.onnx:/app/model.onnx
       - ./logs:/logs
-    command: sh -c "cd /app && celery -A tasks worker --loglevel=info --concurrency=\${THREADS_PER_WORKER:-1} --queues=image"
+    command: sh -c "cd /app && celery -A tasks worker --loglevel=info --concurrency=${THREADS_PER_WORKER:-1} --queues=image"
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - SQUEEZENET_MODEL_PATH=/app/squeezenet.onnx
+      - MODEL_PATH=/app/model.onnx
       - BACKEND_WEBHOOK_URL=http://backend:80/webhook/task_completed
       - ENVIRONMENT=prod
     depends_on:
@@ -178,7 +176,7 @@ services:
       - ./inference/app:/app
     command: sh -c "cd /app && celery -A tasks flower --port=5555 --host=0.0.0.0"
     ports:
-      - "5555:5555"
+      - "5556:5555"
     environment:
       - REDIS_URL=redis://redis:6379/0
       - ENVIRONMENT=dev
@@ -194,16 +192,17 @@ services:
     container_name: flower
     command: sh -c "cd /app && celery -A tasks flower --port=5555 --host=0.0.0.0"
     ports:
-      - "5555:5555"
+      - "5556:5555"
     environment:
       - REDIS_URL=redis://redis:6379/0
       - ENVIRONMENT=prod
     depends_on:
       - redis
 
-  frontend-dev:
+  frontend:
     profiles:
       - "dev"
+      - "prod"
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -213,10 +212,8 @@ services:
     volumes:
       - ./frontend:/app
     environment:
-      - BACKEND_URL=http://backend-dev:80
+      - BACKEND_URL=http://host.docker.internal:8000
     command: python app.py
-    depends_on:
-      - backend-dev
 
 volumes:
   mariadb_data:

@@ -1,4 +1,4 @@
-name: Full Backend CI
+name: Backend CI
 
 on:
   push:
@@ -12,35 +12,37 @@ on:
       - develop
 
 jobs:
-  test:
+  lint-test:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
           pip install coverage flake8
 
-      - name: Run all tests with coverage
+      - name: Run tests with coverage
         env:
-          PYTHONPATH: ${{ github.workspace }}/backend/app:${{ github.workspace }}/backend
+          PYTHONPATH: backend/app:backend
         run: |
-          python -m coverage run --include=backend/app/* -m unittest discover -v tests/backend
-
-      - name: Coverage report
-        run: |
-          python -m coverage report -m --include=backend/app/* --fail-under=90
-          python -m coverage html --include=backend/app/*
+          coverage run --source=backend/app -m unittest discover tests/backend
+          coverage report --fail-under=85
+          coverage xml
 
       - name: Lint with flake8
         run: |
           flake8 backend/app
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml

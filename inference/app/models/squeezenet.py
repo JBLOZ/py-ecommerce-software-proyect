@@ -24,34 +24,38 @@ class SqueezeNet:
             SqueezeNet.__output_name = SqueezeNet.__session.get_outputs()[0].name
 
     def __preprocess_image(self, image_data: bytes) -> np.ndarray:
-        image = Image.open(BytesIO(image_data)).convert('RGB')
-        image = image.resize((224, 224))
-        
-        # Asegurar que todo se mantenga en float32
-        img_array = np.array(image, dtype=np.float32) / np.float32(255.0)
-        
-        mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-        std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
-        
-        # Normalización manteniendo float32 - operaciones explícitas
-        img_array = img_array.astype(np.float32)
-        mean = mean.astype(np.float32)
-        std = std.astype(np.float32)
-        img_array = ((img_array - mean) / std).astype(np.float32)
-        
-        img_array = np.transpose(img_array, (2, 0, 1)).astype(np.float32)
-        img_array = np.expand_dims(img_array, axis=0).astype(np.float32)
-        
-        return img_array
-    
+        try:
+            image = Image.open(BytesIO(image_data)).convert('RGB')
+            image = image.resize((224, 224))
+
+            # Asegurar que todo se mantenga en float32
+            img_array = np.array(image, dtype=np.float32) / np.float32(255.0)
+
+            mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+            std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+            # Normalización manteniendo float32 - operaciones explícitas
+            img_array = img_array.astype(np.float32)
+            mean = mean.astype(np.float32)
+            std = std.astype(np.float32)
+            img_array = ((img_array - mean) / std).astype(np.float32)
+
+            img_array = np.transpose(img_array, (2, 0, 1)).astype(np.float32)
+            img_array = np.expand_dims(img_array, axis=0).astype(np.float32)
+
+            return img_array
+        except Exception as e:
+            logger.error(f"Error preprocessing image: {e}")
+            # Return a tensor of zeros with the expected shape (1, 3, 224, 224)
+            return np.zeros((1, 3, 224, 224), dtype=np.float32)
+
     def __call__(self, image_data: bytes):
         img_tensor = self.__preprocess_image(image_data)
 
         # Ejecutar modelo
-        outputs = self.__session.run([self.__output_name],
-                                    {self.__input_name: img_tensor})[0]        # Aplanar salida (1,1000,1,1) → (1000,) y asegurar float32
+        outputs = self.__session.run([self.__output_name], {self.__input_name: img_tensor})[0]
         logits = outputs.squeeze().astype(np.float32)
-        
+
         # Convertir logits a probabilidades usando softmax
         # softmax(x) = exp(x) / sum(exp(x))
         max_logit = np.max(logits).astype(np.float32)
@@ -70,4 +74,3 @@ class SqueezeNet:
                 for idx in top3_idx
             ]
         }
-

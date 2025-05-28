@@ -104,9 +104,9 @@ class TestAPITasks(unittest.TestCase):
         task_id = 'task456'
         mock_has_result.return_value = True
         
-        # Simular una predicción con puntuación inferior al umbral (0.5)
+        # Simular una predicción con puntuación inferior al umbral (0.01)
         mock_predictions = [
-            MockPrediction(label=2, score=0.3)  # Teléfonos - por debajo del umbral
+            MockPrediction(label=2, score=0.01)  # Teléfonos - por debajo del umbral real (0.05)
         ]
         mock_get_result.return_value = mock_predictions
         

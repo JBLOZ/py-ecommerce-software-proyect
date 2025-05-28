@@ -35,21 +35,18 @@ class TestInferenceTasks(unittest.TestCase):
         self._req_patcher = patch("requests.post", autospec=True)
         self.requests_post = self._req_patcher.start()
 
-        self._sqz_patcher = patch(
-            "inference.app.models.squeezenet.SqueezeNet", autospec=True
-        )
-        self.squeeze_cls = self._sqz_patcher.start()
-
         # 3. import del módulo bajo test
         self.tasks = importlib.import_module("inference.app.tasks")
         importlib.reload(self.tasks)
+        # Mock Celery request.id para la tarea decorada
+        self.tasks.process_image_task.request = MagicMock()
+        self.tasks.process_image_task.request.id = "test-task-id"
 
     # ------------------------------------------------------------- tear-down
     def tearDown(self) -> None:
         for p in (
             self._celery_patcher,
             self._req_patcher,
-            self._sqz_patcher,
         ):
             p.stop()
 
@@ -86,26 +83,28 @@ class TestInferenceTasks(unittest.TestCase):
             self.assertEqual(self.tasks.BACKEND_WEBHOOK, env["BACKEND_WEBHOOK_URL"])
 
     def test_process_image_task_basic_execution(self):
-        self.squeeze_cls.return_value = MagicMock(return_value={"category": []})
-        self.process_image_task(b"img", "id-123")
+        self.process_image_task(b"img")
         self.requests_post.assert_called()
-
-    def test_squeezenet_import_path(self):
-        self.squeeze_cls.return_value = MagicMock(return_value={"category": []})
-        self.process_image_task(b"img", "id-123")
-        self.squeeze_cls.assert_called_once()
 
     def test_process_image_task_integration(self):
         res = {"category": [{"label": 1, "confidence": 0.99}]}
-        self.squeeze_cls.return_value = MagicMock(return_value=res)
-        self.process_image_task(b"img", "job-1")
-        payload = self.requests_post.call_args.kwargs["json"]
-        self.assertEqual(payload["state"], "completed")
-        self.assertIn("categories", payload)
+        with patch("inference.app.tasks.SqueezeNet", autospec=True) as squeeze_cls:
+            squeeze_cls.return_value = MagicMock(return_value=res)
+            self.process_image_task(b"img")
+            payload = self.requests_post.call_args.kwargs["json"]
+            self.assertEqual(payload["state"], "completed")
+            self.assertIn("categories", payload)
+
+    def test_squeezenet_import_path(self):
+        with patch("inference.app.tasks.SqueezeNet", autospec=True) as squeeze_cls:
+            squeeze_cls.return_value = MagicMock(return_value={"category": []})
+            self.process_image_task(b"img")
+            squeeze_cls.assert_called_once()
 
     def test_process_image_task_error_handling(self):
-        self.squeeze_cls.side_effect = RuntimeError("boom")
-        self.process_image_task(b"img", "job-2")
-        payload = self.requests_post.call_args.kwargs["json"]
-        self.assertEqual(payload["state"], "failed")
-        self.assertIn("error", payload)
+        with patch("inference.app.tasks.SqueezeNet", autospec=True) as squeeze_cls:
+            squeeze_cls.side_effect = RuntimeError("boom")
+            self.process_image_task(b"img")
+            payload = self.requests_post.call_args.kwargs["json"]
+            self.assertEqual(payload["state"], "failed")
+            self.assertIn("error", payload)
