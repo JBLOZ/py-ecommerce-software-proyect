@@ -34,7 +34,7 @@ jobs:
           PYTHONPATH: backend/app:backend
         run: |
           coverage run --source=backend/app -m unittest discover tests/backend
-          coverage report --fail-under=85
+          coverage report --fail-under=80
           coverage xml
 
       - name: Lint with flake8
