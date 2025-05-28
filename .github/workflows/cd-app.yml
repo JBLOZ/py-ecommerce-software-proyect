@@ -1,4 +1,4 @@
-name: CD Deploy Simple
+name: CD Deploy
 
 on:
   push:
