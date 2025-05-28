@@ -1,6 +1,7 @@
 """ Category entity representation for SQLAlchemy ORM. """
 
 from enum import Enum
+from sqlmodel import SQLModel, Field
 
 
 class CategoryTypes(Enum):
@@ -11,3 +12,12 @@ class CategoryTypes(Enum):
     ZAPATOS = 4
     PORTATILES = 5
     OTROS = 6
+
+
+class Category(SQLModel, table=True):
+    __table_args__ = {"extend_existing": True}
+    id: int = Field(primary_key=True)
+    name: str
+
+    class Config:
+        pass

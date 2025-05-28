@@ -1,8 +1,14 @@
 FROM python:3.13-slim
 
+# Install build dependencies needed for numpy and other packages
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /
 
-COPY ./requirements.txt .
+COPY ./inference/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY ./app /app
+COPY ./inference/app /app

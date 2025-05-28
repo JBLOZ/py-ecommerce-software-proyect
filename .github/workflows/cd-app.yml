@@ -1,0 +1,23 @@
+name: CD Deploy
+
+on:
+  push:
+    branches: [develop, main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Launch services
+        run: |
+          echo "Launching services with Docker Compose..."
+          docker compose --profile prod up -d --build
+
+      - name: Show running services
+        run: |
+          echo "Services launched successfully:"
+          docker compose ps

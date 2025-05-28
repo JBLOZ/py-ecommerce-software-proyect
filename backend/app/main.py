@@ -1,11 +1,45 @@
 import os
-import logging
-import pymysql
+from api import webhook_router
+from controllers import core_router, tasks_router
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from db import DatabaseRegistry
+from utils import get_logger
 
-app = FastAPI(title="E-commerce Search API")
+logger = get_logger("backend_main")
 
-DB_HOST = os.getenv("DB_HOST", "db")
-DB_USER = os.getenv("DB_USER", "ecomuser")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "ecompass")
-DB_NAME = os.getenv("DB_NAME", "ecommerce")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Inicializar la base de datos
+    logger.info("Iniciando aplicación backend")
+    logger.info("Inicializando la conexión a la base de datos...")
+    DatabaseRegistry.initialize(
+        os.getenv("DB_URL", "mysql+pymysql://user:password@db/ecommerce")
+    )
+    logger.info("Base de datos inicializada correctamente.")
+    # Ya no se cargan datos de muestra desde JSON
+
+    yield
+
+    # Limpieza al cerrar la aplicación
+    logger.info("Cerrando conexiones a la base de datos...")
+    DatabaseRegistry.close()
+    logger.info("Aplicación backend cerrada correctamente")
+
+
+app = FastAPI(
+    title="E-commerce Search API",
+    lifespan=lifespan
+)
+
+# Configuración de la base de datos
+# Usar la URL de conexión completa
+DB_URL = os.getenv("DB_URL", "mysql+pymysql://user:password@db/ecommerce")
+
+# Incluir routers de la API
+logger.info("Configurando routers de la aplicación")
+app.include_router(core_router)
+app.include_router(webhook_router)
+app.include_router(tasks_router)
+logger.info("Routers configurados correctamente")

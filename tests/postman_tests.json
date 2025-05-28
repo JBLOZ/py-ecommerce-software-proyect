@@ -1,0 +1,337 @@
+{
+  "info": {
+    "name": "Complete Application API Tests",
+    "description": "Comprehensive test collection for Backend and Inference services with all implemented endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "backend_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "inference_url",
+      "value": "http://localhost:8001", 
+      "type": "string"
+    },
+    {
+      "key": "task_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Backend API Tests",
+      "description": "Tests for all implemented backend endpoints",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{backend_url}}/health",
+              "host": ["{{backend_url}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{backend_url}}/categories",
+              "host": ["{{backend_url}}"],
+              "path": ["categories"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{backend_url}}/products",
+              "host": ["{{backend_url}}"],
+              "path": ["products"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Search by Text",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"query\": \"camiseta deportiva\"\n}"
+            },
+            "url": {
+              "raw": "{{backend_url}}/search/text",
+              "host": ["{{backend_url}}"],
+              "path": ["search", "text"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Search by Image",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.task_id) {",
+                  "        pm.collectionVariables.set('task_id', jsonData.task_id);",
+                  "        console.log('Task ID captured: ' + jsonData.task_id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "gato.jpeg",
+                  "description": "Upload image file for classification"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{backend_url}}/search/image",
+              "host": ["{{backend_url}}"],
+              "path": ["search", "image"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Task Result",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{backend_url}}/tasks/{{task_id}}/result",
+              "host": ["{{backend_url}}"],
+              "path": ["tasks", "{{task_id}}", "result"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Webhook - Task Completed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"task_id\": \"test-webhook-123\",\n    \"state\": \"completed\",\n    \"categories\": [\n        {\"label\": 1, \"score\": 0.95},\n        {\"label\": 3, \"score\": 0.85},\n        {\"label\": 5, \"score\": 0.75}\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{backend_url}}/webhook/task_completed",
+              "host": ["{{backend_url}}"],
+              "path": ["webhook", "task_completed"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Inference API Tests",
+      "description": "Tests for all implemented inference service endpoints",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{inference_url}}/health",
+              "host": ["{{inference_url}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Infer Image (Async via Celery)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.task_id) {",
+                  "        pm.collectionVariables.set('task_id', jsonData.task_id);",
+                  "        console.log('Inference Task ID captured: ' + jsonData.task_id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "gato.jpeg",
+                  "description": "Upload image file for async inference processing"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{inference_url}}/infer/image",
+              "host": ["{{inference_url}}"],
+              "path": ["infer", "image"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Infer Image (Sync)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "gato.jpeg",
+                  "description": "Upload image file for immediate inference processing"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{inference_url}}/infer/image/sync",
+              "host": ["{{inference_url}}"],
+              "path": ["infer", "image", "sync"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Integration Workflow Tests",
+      "description": "End-to-end workflow tests combining backend and inference services",
+      "item": [
+        {
+          "name": "Complete Image Search Workflow",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Complete workflow test:",
+                  "// 1. Submit image via backend",
+                  "// 2. Backend forwards to inference service",
+                  "// 3. Check task result when ready",
+                  "console.log('Starting complete image search workflow...');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.task_id) {",
+                  "        pm.collectionVariables.set('task_id', jsonData.task_id);",
+                  "        console.log('Workflow Task ID: ' + jsonData.task_id);",
+                  "        console.log('Use \"Get Task Result\" to check status');",
+                  "    }",
+                  "}",
+                  "pm.test('Should return task_id', function () {",
+                  "    pm.expect(pm.response.json()).to.have.property('task_id');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "gato.jpeg",
+                  "description": "Test image for complete workflow"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{backend_url}}/search/image",
+              "host": ["{{backend_url}}"],
+              "path": ["search", "image"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Check Workflow Result",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Add delay to allow task processing",
+                  "console.log('Checking result for task: ' + pm.collectionVariables.get('task_id'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{backend_url}}/tasks/{{task_id}}/result",
+              "host": ["{{backend_url}}"],
+              "path": ["tasks", "{{task_id}}", "result"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

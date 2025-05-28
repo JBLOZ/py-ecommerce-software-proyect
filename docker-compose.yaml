@@ -1,21 +1,219 @@
 services:
+  db:
+    profiles:
+      - "dev"
+      - "prod"
+    image: mariadb:latest
+    container_name: ecommerce_mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ecommerce
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./data/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+  adminer:
+    profiles:
+      - "dev"
+      - "prod"
+    image: adminer:latest
+    container_name: ecommerce_adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  backend-dev:
+    profiles:
+      - "dev"
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile
+    container_name: backend-dev
+    environment:
+      - DB_URL=mysql+pymysql://user:password@db/ecommerce
+      - PYTHONPATH=src
+      - ENVIRONMENT=dev
+      - INFERENCE_CONFIDENCE_THRESHOLD=0.1
+    ports:
+      - "8000:80"
+    volumes:
+      - ./backend/app:/code/src
+      - ./logs:/logs
+      - ./data:/code/data
+    depends_on:
+      - db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: /code/scripts/wait-for-it.sh db:3306 -t 60 -- fastapi dev src/main.py --host 0.0.0.0 --port 80
+
+  backend:
+    profiles:
+      - "prod"
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile
+    container_name: backend
+    environment:
+      - DB_URL=mysql+pymysql://user:password@db/ecommerce
+      - PYTHONPATH=src
+      - ENVIRONMENT=prod
+      - INFERENCE_CONFIDENCE_THRESHOLD=0.1
+    ports:
+      - "8000:80"
+    volumes:
+      - ./logs:/logs
+      - ./data:/code/data
+    depends_on:
+      - db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    command: /code/scripts/wait-for-it.sh db:3306 -t 60 -- fastapi run src/main.py --proxy-headers --port 80
+
   redis:
+    profiles:
+      - "dev"
+      - "prod"
     image: redis:7-alpine
     ports:
       - "6379:6379"
 
-  celery:
+  inference-dev:
+    profiles:
+      - "dev"
     build:
-      context: ./inference
-      dockerfile: Dockerfile.worker
-    container_name: celery
+      context: .
+      dockerfile: inference/Dockerfile
+    container_name: inference-dev
+    ports:
+      - "8001:80"
     volumes:
       - ./inference/app:/app
-    command: celery -A app.tasks flower worker --loglevel=info --concurrency=${THREADS_PER_WORKER}
-    ports:
-      - "5555:5555"
+      - ./logs:/logs
     environment:
+      - MODEL_PATH=/app/model.onnx
       - REDIS_URL=redis://redis:6379/0
-      - BACKEND_WEBHOOK=""
+      - ENVIRONMENT=dev
+    command: fastapi dev main.py --host 0.0.0.0 --port 80
     depends_on:
       - redis
+
+  inference:
+    profiles:
+      - "prod"
+    build:
+      context: .
+      dockerfile: inference/Dockerfile
+    container_name: inference
+    ports:
+      - "8001:80"
+    volumes:
+      - ./logs:/logs
+    environment:
+      - MODEL_PATH=/app/model.onnx
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=prod
+    command: fastapi run main.py --host 0.0.0.0 --port 80
+    depends_on:
+      - redis
+
+  celery-dev:
+    profiles:
+      - "dev"
+    build:
+      context: .
+      dockerfile: inference/Dockerfile.worker
+    container_name: celery-dev
+    volumes:
+      - ./model.onnx:/app/model.onnx
+      - ./logs:/logs
+      - ./inference/app:/app
+    command: sh -c "cd /app && celery -A tasks worker --loglevel=info --concurrency=${THREADS_PER_WORKER:-1} --queues=image"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - MODEL_PATH=/app/model.onnx
+      - BACKEND_WEBHOOK_URL=http://backend-dev:80/webhook/task_completed
+      - ENVIRONMENT=dev
+    depends_on:
+      - redis
+      - backend-dev
+
+  celery:
+    profiles:
+      - "prod"
+    build:
+      context: .
+      dockerfile: inference/Dockerfile.worker
+    container_name: celery
+    volumes:
+      - ./model.onnx:/app/model.onnx
+      - ./logs:/logs
+    command: sh -c "cd /app && celery -A tasks worker --loglevel=info --concurrency=${THREADS_PER_WORKER:-1} --queues=image"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - MODEL_PATH=/app/model.onnx
+      - BACKEND_WEBHOOK_URL=http://backend:80/webhook/task_completed
+      - ENVIRONMENT=prod
+    depends_on:
+      - redis
+      - backend
+
+  flower-dev:
+    profiles:
+      - "dev"
+    build:
+      context: .
+      dockerfile: inference/Dockerfile.worker
+    container_name: flower-dev
+    volumes:
+      - ./inference/app:/app
+    command: sh -c "cd /app && celery -A tasks flower --port=5555 --host=0.0.0.0"
+    ports:
+      - "5556:5555"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=dev
+    depends_on:
+      - redis
+
+  flower:
+    profiles:
+      - "prod"
+    build:
+      context: .
+      dockerfile: inference/Dockerfile.worker
+    container_name: flower
+    command: sh -c "cd /app && celery -A tasks flower --port=5555 --host=0.0.0.0"
+    ports:
+      - "5556:5555"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=prod
+    depends_on:
+      - redis
+
+  frontend:
+    profiles:
+      - "dev"
+      - "prod"
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend-dev
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./frontend:/app
+    environment:
+      - BACKEND_URL=http://host.docker.internal:8000
+    command: python app.py
+
+volumes:
+  mariadb_data:

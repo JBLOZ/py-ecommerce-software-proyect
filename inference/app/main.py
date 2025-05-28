@@ -1,17 +1,19 @@
-import uuid
+from fastapi import FastAPI
+try:
+    from utils import get_logger
+except ImportError:
+    from .utils.logger import get_logger
 
-from fastapi import FastAPI, UploadFile, File
-from app.tasks import process_image_task
+logger = get_logger("inference_main")
 
+try:
+    from inference_controller import router as inference_router
+except ImportError:
+    from .inference_controller import router as inference_router
+
+logger.info("Iniciando aplicación de inferencia")
 app = FastAPI()
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
-
-@app.post("/infer/image")
-async def infer_image(file: UploadFile = File(...)):
-    image_data = await file.read()
-    task_id = str(uuid.uuid4())
-    process_image_task.delay(image_data, task_id)
-    return {"task_id": task_id}
+# Incluir el router sin prefijo para que las rutas estén en la raíz
+app.include_router(inference_router)
+logger.info("Router de inferencia configurado correctamente")

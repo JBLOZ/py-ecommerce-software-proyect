@@ -1,10 +1,18 @@
 FROM python:3.12
 
-WORKDIR /code
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY ./requirements.txt /code/requirements.txt
-RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+WORKDIR /app
 
-COPY ./app /code/app
+# Install Python dependencies
+COPY ./inference/requirements.txt /requirements.txt
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+RUN pip install --no-cache-dir --upgrade -r /requirements.txt
 
-CMD ["fastapi", "run", "app/main.py", "--port", "80"]
+COPY ./inference/app /app
+
+CMD ["fastapi", "run", "main.py", "--host", "0.0.0.0", "--port", "80"]
