@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 from unittest.mock import MagicMock, patch
 from inference.app.models.squeezenet import SqueezeNet
 

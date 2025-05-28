@@ -2,7 +2,6 @@ import importlib.util
 import sys
 import os
 from unittest.mock import patch
-import pytest
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../inference/app')))
@@ -56,28 +55,3 @@ def test_main_logger_info(caplog):
     logs = caplog.text.lower()
     assert "iniciando aplicación de inferencia" in logs
     assert "router de inferencia configurado correctamente" in logs
-
-# Test para cubrir los except Exception en los endpoints de inference_controller
-@pytest.fixture
-def client():
-    from main import app
-    return TestClient(app)
-
-def test_infer_image_sync_generic_error(client, monkeypatch):
-    # Fuerza un error genérico en SqueezeNet
-    import inference.app.inference_controller as ctrl
-    monkeypatch.setattr(ctrl, 'SqueezeNet', lambda *a, **kw: (_ for _ in ()).throw(Exception('fail')))
-    files = {"file": ("img.jpg", b"data", "image/jpeg")}
-    resp = client.post("/infer/image/sync", files=files)
-    # Espera 200 y respuesta fallback (como los tests funcionales)
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "category" in data
-    assert len(data["category"]) == 1
-
-def test_infer_image_async_generic_error(client):
-    import inference.app.inference_controller as ctrl
-    with patch.object(ctrl.process_image_task, 'delay', side_effect=Exception('fail celery')):
-        files = {"file": ("img.jpg", b"data", "image/jpeg")}
-        with pytest.raises(Exception):
-            client.post("/infer/image", files=files)

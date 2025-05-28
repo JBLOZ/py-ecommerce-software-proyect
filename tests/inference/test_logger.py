@@ -2,8 +2,6 @@ import importlib
 import os
 import sys
 import shutil
-import types
-import pytest
 
 def test_logger_makedirs(tmp_path, monkeypatch):
     # Paso 1: Forzar que el directorio de logs no exista

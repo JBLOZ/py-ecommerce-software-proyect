@@ -77,7 +77,6 @@ class SqueezeNet:
             ]
         }
 
-import pytest
 import numpy as np
 from io import BytesIO
 
