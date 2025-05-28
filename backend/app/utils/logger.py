@@ -9,6 +9,7 @@ import os
 import logging
 from logging.handlers import RotatingFileHandler
 
+
 # Configuración global para centralizar logs de todo el backend
 # Usar ruta relativa que funcione tanto en local como en CI/CD
 # En modo test, usar directorio temporal si logs no está disponible
@@ -23,6 +24,7 @@ def get_log_file_path():
         # En caso de error (como en CI/CD), usar directorio temporal
         import tempfile
         return os.path.join(tempfile.gettempdir(), 'backend.log')
+
 
 log_file_path = get_log_file_path()
 
